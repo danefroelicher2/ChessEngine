@@ -106,9 +106,15 @@ Move Engine::getBestMove() {
     // Initialize the best move to the first legal move
     Move bestMove = legalMoves[0];
     
+    // Generate the hash key for the current position
+    uint64_t hashKey = Zobrist::generateHashKey(board);
+    
+    // Increment the age of the transposition table
+    transpositionTable.incrementAge();
+    
     // Use alpha-beta pruning to find the best move
     alphaBeta(board, maxDepth, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), 
-              board.getSideToMove() == Color::WHITE, bestMove);
+              board.getSideToMove() == Color::WHITE, bestMove, hashKey);
     
     return bestMove;
 }

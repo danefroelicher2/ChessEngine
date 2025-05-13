@@ -3,24 +3,34 @@
 
 #include "main.h"
 #include "game.h"
+#include "transposition.h"
+#include "zobrist.h"
 
 class Engine {
 private:
     int maxDepth;
     Game& game;
+    TranspositionTable transpositionTable;
     
 public:
-    Engine(Game& g, int depth = 3) : game(g), maxDepth(depth) {}
+    Engine(Game& g, int depth = 3, int ttSizeMB = 64) 
+        : game(g), maxDepth(depth), transpositionTable(ttSizeMB) {}
     
     // Set the search depth
     void setDepth(int depth) { maxDepth = depth; }
     
+    // Set transposition table size
+    void setTTSize(int sizeMB) { transpositionTable.resize(sizeMB); }
+    
     // Calculate the best move for the current position
     Move getBestMove();
     
+    // Clear the transposition table
+    void clearTT() { transpositionTable.clear(); }
+    
 private:
-    // Alpha-beta minimax search algorithm
-    int alphaBeta(Board& board, int depth, int alpha, int beta, bool maximizingPlayer, Move& bestMove);
+    // Alpha-beta minimax search algorithm with transposition table
+    int alphaBeta(Board& board, int depth, int alpha, int beta, bool maximizingPlayer, Move& bestMove, uint64_t hashKey);
     
     // Evaluate a board position
     int evaluatePosition(const Board& board);
@@ -45,5 +55,3 @@ private:
     // Check if the game is in the endgame phase
     bool isEndgame(const Board& board) const;
 };
-
-#endif // ENGINE_H
