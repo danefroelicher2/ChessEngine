@@ -61,6 +61,15 @@ public:
     // Check if a square is attacked by a piece of the specified color
     bool isSquareAttacked(const Position& pos, Color attackerColor) const;
     
+    // Castling rights accessors
+    bool getWhiteCanCastleKingside() const { return whiteCanCastleKingside; }
+    bool getWhiteCanCastleQueenside() const { return whiteCanCastleQueenside; }
+    bool getBlackCanCastleKingside() const { return blackCanCastleKingside; }
+    bool getBlackCanCastleQueenside() const { return blackCanCastleQueenside; }
+    
+    // En passant target accessor
+    Position getEnPassantTarget() const { return enPassantTarget; }
+    
     // Print the board to the console
     void print() const;
     
