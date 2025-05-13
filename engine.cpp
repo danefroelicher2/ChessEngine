@@ -116,10 +116,33 @@ Move Engine::getBestMove() {
     alphaBeta(board, maxDepth, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), 
               board.getSideToMove() == Color::WHITE, bestMove, hashKey);
     
+    // If by some chance we didn't find a valid move, try a simple approach
+    if (!bestMove.from.isValid() || !bestMove.to.isValid()) {
+        // Find any legal move as a fallback
+        for (const auto& move : legalMoves) {
+            // Check if capturing a piece
+            if (board.getPieceAt(move.to) != nullptr) {
+                return move; // Return the first capture move
+            }
+        }
+        // If no captures, return first legal move
+        return legalMoves[0];
+    }
+    
     return bestMove;
 }
 
-int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximizingPlayer, Move& bestMove) {
+int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximizingPlayer, Move& bestMove, uint64_t hashKey) {
+    // Check transposition table for this position
+    int originalAlpha = alpha;
+    Move ttMove(Position(), Position());
+    int score;
+    
+    // Probe the transposition table
+    if (transpositionTable.probe(hashKey, depth, alpha, beta, score, ttMove)) {
+        return score; // Return cached result if available
+    }
+    
     // If we've reached the maximum depth or the game is over, evaluate the position
     if (depth == 0 || board.isCheckmate() || board.isStalemate()) {
         return evaluatePosition(board);
@@ -128,10 +151,32 @@ int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximiz
     // Generate all legal moves
     std::vector<Move> legalMoves = board.generateLegalMoves();
     
-    // Randomize move order to add variety
-    std::random_device rd;
-    std::mt19937 g(rd());
-    std::shuffle(legalMoves.begin(), legalMoves.end(), g);
+    // If we have a promising move from the transposition table, try it first
+    if (ttMove.from.isValid() && ttMove.to.isValid()) {
+        auto it = std::find_if(legalMoves.begin(), legalMoves.end(), 
+                              [&ttMove](const Move& m) { 
+                                  return m.from.row == ttMove.from.row && 
+                                         m.from.col == ttMove.from.col && 
+                                         m.to.row == ttMove.to.row && 
+                                         m.to.col == ttMove.to.col; 
+                              });
+        
+        if (it != legalMoves.end()) {
+            // Move the transposition table move to the front
+            std::swap(*it, legalMoves[0]);
+        }
+    }
+    
+    // Add some move ordering heuristics - try captures first
+    std::stable_sort(legalMoves.begin(), legalMoves.end(), 
+                    [&board](const Move& a, const Move& b) {
+                        bool aCaptures = board.getPieceAt(a.to) != nullptr;
+                        bool bCaptures = board.getPieceAt(b.to) != nullptr;
+                        return aCaptures && !bCaptures; // true if a captures and b doesn't
+                    });
+    
+    NodeType nodeType = NodeType::ALPHA;
+    Move localBestMove = legalMoves.empty() ? Move(Position(), Position()) : legalMoves[0];
     
     if (maximizingPlayer) {
         int maxEval = std::numeric_limits<int>::min();
@@ -143,12 +188,17 @@ int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximiz
             // Make the move
             tempBoard.makeMove(move);
             
+            // Calculate the new hash key after the move
+            uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
+            
             // Recursively evaluate the position
-            int eval = alphaBeta(tempBoard, depth - 1, alpha, beta, false, bestMove);
+            Move dummy(Position(), Position());
+            int eval = alphaBeta(tempBoard, depth - 1, alpha, beta, false, dummy, newHashKey);
             
             // Update the best move if this move is better
             if (eval > maxEval) {
                 maxEval = eval;
+                localBestMove = move;
                 
                 if (depth == maxDepth) {
                     bestMove = move;
@@ -158,9 +208,16 @@ int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximiz
             // Alpha-beta pruning
             alpha = std::max(alpha, eval);
             if (beta <= alpha) {
+                nodeType = NodeType::BETA; // Fail high
                 break;
             }
         }
+        
+        // Store result in transposition table
+        if (maxEval > originalAlpha && maxEval < beta) {
+            nodeType = NodeType::EXACT;
+        }
+        transpositionTable.store(hashKey, depth, maxEval, nodeType, localBestMove);
         
         return maxEval;
     } else {
@@ -173,12 +230,17 @@ int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximiz
             // Make the move
             tempBoard.makeMove(move);
             
+            // Calculate the new hash key after the move
+            uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
+            
             // Recursively evaluate the position
-            int eval = alphaBeta(tempBoard, depth - 1, alpha, beta, true, bestMove);
+            Move dummy(Position(), Position());
+            int eval = alphaBeta(tempBoard, depth - 1, alpha, beta, true, dummy, newHashKey);
             
             // Update the best move if this move is better
             if (eval < minEval) {
                 minEval = eval;
+                localBestMove = move;
                 
                 if (depth == maxDepth) {
                     bestMove = move;
@@ -188,9 +250,16 @@ int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximiz
             // Alpha-beta pruning
             beta = std::min(beta, eval);
             if (beta <= alpha) {
+                nodeType = NodeType::ALPHA; // Fail low
                 break;
             }
         }
+        
+        // Store result in transposition table
+        if (minEval > originalAlpha && minEval < beta) {
+            nodeType = NodeType::EXACT;
+        }
+        transpositionTable.store(hashKey, depth, minEval, nodeType, localBestMove);
         
         return minEval;
     }
