@@ -84,18 +84,133 @@ uint64_t Zobrist::generateHashKey(const Board& board) {
 }
 
 uint64_t Zobrist::updateHashKey(uint64_t currentKey, const Move& move, const Board& board) {
-    // This is a more complex function to implement efficiently
-    // For now, we'll just regenerate the hash after the move
-    // In a more advanced implementation, you would efficiently update the key
-    // based on what changed with the move
+    uint64_t newKey = currentKey;
     
-    // Simple implementation: just regenerate the hash
-    // A proper implementation would modify only the changing elements
+    // Get the piece being moved
+    auto movingPiece = board.getPieceAt(move.from);
+    if (!movingPiece) return newKey; // Should never happen
     
-    // Create a copy of the board and make the move
-    Board tempBoard = board;
-    tempBoard.makeMove(move);
+    Color movingColor = movingPiece->getColor();
+    int pieceType = static_cast<int>(movingPiece->getType());
+    int fromIndex = move.from.row * 8 + move.from.col;
+    int toIndex = move.to.row * 8 + move.to.col;
+    int colorIndex = (movingColor == Color::WHITE) ? 0 : 1;
     
-    // Return the hash of the new position
-    return generateHashKey(tempBoard);
+    // Remove piece from source square
+    newKey ^= pieceKeys[pieceType][colorIndex][fromIndex];
+    
+    // Check if this is a capture
+    auto capturedPiece = board.getPieceAt(move.to);
+    if (capturedPiece) {
+        int capturedType = static_cast<int>(capturedPiece->getType());
+        int capturedColorIndex = (capturedPiece->getColor() == Color::WHITE) ? 0 : 1;
+        
+        // Remove captured piece from destination
+        newKey ^= pieceKeys[capturedType][capturedColorIndex][toIndex];
+    }
+    
+    // Special case: en passant capture
+    if (pieceType == static_cast<int>(PieceType::PAWN) && move.to == board.getEnPassantTarget()) {
+        // Remove the captured pawn
+        int capturedPawnRow = (movingColor == Color::WHITE) ? move.to.row - 1 : move.to.row + 1;
+        int capturedPawnIndex = capturedPawnRow * 8 + move.to.col;
+        int opponentColorIndex = 1 - colorIndex;
+        
+        // Remove captured pawn
+        newKey ^= pieceKeys[static_cast<int>(PieceType::PAWN)][opponentColorIndex][capturedPawnIndex];
+    }
+    
+    // Handle promotion
+    if (move.promotion != PieceType::NONE) {
+        // Add the promoted piece instead of the pawn
+        newKey ^= pieceKeys[static_cast<int>(move.promotion)][colorIndex][toIndex];
+    } else {
+        // Add the moving piece to the destination square
+        newKey ^= pieceKeys[pieceType][colorIndex][toIndex];
+    }
+    
+    // Handle castling
+    if (pieceType == static_cast<int>(PieceType::KING)) {
+        // Kingside castling
+        if (move.from.col == 4 && move.to.col == 6) {
+            // Remove rook from old position
+            int rookFromIndex = move.from.row * 8 + 7;
+            int rookToIndex = move.from.row * 8 + 5;
+            newKey ^= pieceKeys[static_cast<int>(PieceType::ROOK)][colorIndex][rookFromIndex];
+            newKey ^= pieceKeys[static_cast<int>(PieceType::ROOK)][colorIndex][rookToIndex];
+        }
+        // Queenside castling
+        else if (move.from.col == 4 && move.to.col == 2) {
+            // Remove rook from old position
+            int rookFromIndex = move.from.row * 8 + 0;
+            int rookToIndex = move.from.row * 8 + 3;
+            newKey ^= pieceKeys[static_cast<int>(PieceType::ROOK)][colorIndex][rookFromIndex];
+            newKey ^= pieceKeys[static_cast<int>(PieceType::ROOK)][colorIndex][rookToIndex];
+        }
+    }
+    
+    // Update castling rights
+    bool oldWhiteKingside = board.getWhiteCanCastleKingside();
+    bool oldWhiteQueenside = board.getWhiteCanCastleQueenside();
+    bool oldBlackKingside = board.getBlackCanCastleKingside();
+    bool oldBlackQueenside = board.getBlackCanCastleQueenside();
+    
+    // These are estimates - the actual changes will depend on the board implementation
+    bool newWhiteKingside = oldWhiteKingside;
+    bool newWhiteQueenside = oldWhiteQueenside;
+    bool newBlackKingside = oldBlackKingside;
+    bool newBlackQueenside = oldBlackQueenside;
+    
+    // King move loses all castling rights
+    if (pieceType == static_cast<int>(PieceType::KING)) {
+        if (movingColor == Color::WHITE) {
+            newWhiteKingside = false;
+            newWhiteQueenside = false;
+        } else {
+            newBlackKingside = false;
+            newBlackQueenside = false;
+        }
+    }
+    
+    // Rook moves or captures
+    if (pieceType == static_cast<int>(PieceType::ROOK)) {
+        if (movingColor == Color::WHITE) {
+            if (move.from.row == 0 && move.from.col == 0) newWhiteQueenside = false;
+            if (move.from.row == 0 && move.from.col == 7) newWhiteKingside = false;
+        } else {
+            if (move.from.row == 7 && move.from.col == 0) newBlackQueenside = false;
+            if (move.from.row == 7 && move.from.col == 7) newBlackKingside = false;
+        }
+    }
+    
+    // Rook capture
+    if (capturedPiece && capturedPiece->getType() == PieceType::ROOK) {
+        if (move.to.row == 0 && move.to.col == 0) newWhiteQueenside = false;
+        if (move.to.row == 0 && move.to.col == 7) newWhiteKingside = false;
+        if (move.to.row == 7 && move.to.col == 0) newBlackQueenside = false;
+        if (move.to.row == 7 && move.to.col == 7) newBlackKingside = false;
+    }
+    
+    // Update the hash for changed castling rights
+    if (oldWhiteKingside != newWhiteKingside) newKey ^= castlingKeys[0];
+    if (oldWhiteQueenside != newWhiteQueenside) newKey ^= castlingKeys[1];
+    if (oldBlackKingside != newBlackKingside) newKey ^= castlingKeys[2];
+    if (oldBlackQueenside != newBlackQueenside) newKey ^= castlingKeys[3];
+    
+    // Handle en passant changes
+    Position oldEnPassant = board.getEnPassantTarget();
+    if (oldEnPassant.isValid()) {
+        newKey ^= enPassantKeys[oldEnPassant.col];
+    }
+    
+    // If this is a double pawn push, add new en passant target
+    if (pieceType == static_cast<int>(PieceType::PAWN) && abs(move.to.row - move.from.row) == 2) {
+        int enPassantFile = move.from.col;
+        newKey ^= enPassantKeys[enPassantFile];
+    }
+    
+    // Toggle side to move
+    newKey ^= sideToMoveKey;
+    
+    return newKey;
 }
