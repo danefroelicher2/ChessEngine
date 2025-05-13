@@ -14,6 +14,8 @@ set(SOURCES
     game.cpp
     engine.cpp
     ui.cpp
+    zobrist.cpp
+    transposition.cpp
 )
 
 # Add header files
@@ -25,6 +27,8 @@ set(HEADERS
     game.h
     engine.h
     ui.h
+    zobrist.h
+    transposition.h
 )
 
 # Create executable
