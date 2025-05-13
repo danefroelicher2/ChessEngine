@@ -1,7 +1,9 @@
 #include "ui.h"
 #include <iostream>
+#include <string>
 #include <chrono>
 #include <thread>
+#include <stdexcept>  
 
 void UI::newGame(bool playerPlaysWhite) {
     game.newGame();
@@ -31,7 +33,6 @@ void UI::run() {
             std::cout << "Game over! ";
             
             switch (game.getResult()) {
-                case GameResult::WHITE_WINS:
                     std::cout << "White wins";
                     break;
                 case GameResult::BLACK_WINS:
