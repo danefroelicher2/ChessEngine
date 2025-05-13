@@ -1,9 +1,7 @@
 #include "ui.h"
 #include <iostream>
-#include <string>
 #include <chrono>
 #include <thread>
-#include <stdexcept>  
 
 void UI::newGame(bool playerPlaysWhite) {
     game.newGame();
@@ -33,6 +31,7 @@ void UI::run() {
             std::cout << "Game over! ";
             
             switch (game.getResult()) {
+                case GameResult::WHITE_WINS:
                     std::cout << "White wins";
                     break;
                 case GameResult::BLACK_WINS:
@@ -205,6 +204,21 @@ bool UI::processCommand(const std::string& command) {
         } catch (const std::exception& e) {
             std::cout << "Invalid depth!" << std::endl;
         }
+    } else if (command.substr(0, 7) == "ttsize ") {
+        try {
+            int sizeMB = std::stoi(command.substr(7));
+            if (sizeMB > 0) {
+                engine.setTTSize(sizeMB);
+                std::cout << "Transposition table size set to " << sizeMB << " MB" << std::endl;
+            } else {
+                std::cout << "Invalid size!" << std::endl;
+            }
+        } catch (const std::exception& e) {
+            std::cout << "Invalid size!" << std::endl;
+        }
+    } else if (command == "cleartt") {
+        engine.clearTT();
+        std::cout << "Transposition table cleared" << std::endl;
     } else {
         // Try to interpret the command as a move
         if (isPlayerTurn()) {
@@ -235,6 +249,8 @@ void UI::displayHelp() const {
     std::cout << "  resign         - Resign the current game" << std::endl;
     std::cout << "  draw           - Offer a draw" << std::endl;
     std::cout << "  depth [n]      - Set the engine search depth to n" << std::endl;
+    std::cout << "  ttsize [n]     - Set the transposition table size to n MB" << std::endl;
+    std::cout << "  cleartt        - Clear the transposition table" << std::endl;
     std::cout << "  quit/exit      - Exit the program" << std::endl;
     std::cout << std::endl;
     std::cout << "To make a move, enter the source and destination squares." << std::endl;
