@@ -12,7 +12,7 @@ bool Piece::isBasicallyValid(const Position& pos, const Board& board) const {
     
     return true;
 }
-
+k
 char Piece::toChar() const {
     char c = ' ';
     switch (type) {
