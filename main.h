@@ -18,4 +18,3 @@ class Engine;
 
 #endif // MAIN_H
 
-d
