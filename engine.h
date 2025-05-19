@@ -15,9 +15,6 @@ private:
     Game& game;
     TranspositionTable transpositionTable;
     
-    // Principal Variation (PV) storage
-    std::vector<Move> principalVariation;
-    
     // Killer move tables - stores non-capturing moves that caused beta cutoffs
     // We'll store 2 killer moves per ply
     Move killerMoves[MAX_PLY][2];
@@ -26,13 +23,9 @@ private:
     // Records how often moves lead to beta cutoffs
     int historyTable[2][64][64];
     
-    // Search statistics
-    long nodesSearched;
-    std::chrono::time_point<std::chrono::high_resolution_clock> searchStartTime;
-    
 public:
     Engine(Game& g, int depth = 3, int ttSizeMB = 64) 
-        : game(g), maxDepth(depth), transpositionTable(ttSizeMB), nodesSearched(0) {
+        : game(g), maxDepth(depth), transpositionTable(ttSizeMB) {
         // Initialize killer moves to invalid moves
         clearKillerMoves();
         // Initialize history table
@@ -71,26 +64,9 @@ public:
         }
     }
     
-    // Get the principal variation as a string
-    std::string getPVString() const;
-    
-    // Get the number of nodes searched
-    long getNodesSearched() const { return nodesSearched; }
-    
-    // Reset search statistics
-    void resetStats() { nodesSearched = 0; }
-    
 private:
-    // Iterative deepening search
-    Move iterativeDeepeningSearch(Board& board, int maxDepth, uint64_t hashKey);
-    
     // Alpha-beta minimax search algorithm with transposition table
-    int alphaBeta(Board& board, int depth, int alpha, int beta, bool maximizingPlayer, 
-                  std::vector<Move>& pv, uint64_t hashKey, int ply);
-    
-    // Principal Variation Search (PVS) - optimization of alpha-beta
-    int pvSearch(Board& board, int depth, int alpha, int beta, bool maximizingPlayer, 
-                std::vector<Move>& pv, uint64_t hashKey, int ply);
+    int alphaBeta(Board& board, int depth, int alpha, int beta, bool maximizingPlayer, Move& bestMove, uint64_t hashKey, int ply);
     
     // Evaluate a board position
     int evaluatePosition(const Board& board);
@@ -111,11 +87,7 @@ private:
     int getHistoryScore(const Move& move, Color color) const;
     
     // Get score for move ordering
-    int getMoveScore(const Move& move, const Board& board, const Move& ttMove, 
-                     const std::vector<Move>& pv, int ply, Color sideToMove) const;
-    
-    // Check if a move is part of the principal variation
-    bool isPVMove(const Move& move, const std::vector<Move>& pv, int ply) const;
+    int getMoveScore(const Move& move, const Board& board, const Move& ttMove, int ply, Color sideToMove) const;
     
     // Piece value tables for positional evaluation
     static const int pawnTable[64];
