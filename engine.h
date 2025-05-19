@@ -15,21 +15,32 @@ private:
     Game& game;
     TranspositionTable transpositionTable;
     
+    // Principal Variation (PV) storage
+    std::vector<Move> principalVariation;
+    
     // Killer move tables - stores non-capturing moves that caused beta cutoffs
     // We'll store 2 killer moves per ply
     Move killerMoves[MAX_PLY][2];
+    
+    // Counter move heuristic table [piece_type][color][from_square][to_square]
+    // Stores moves that were effective against specific opponent moves
+    Move counterMoves[6][2][64][64];
     
     // History heuristic table [color][from_square][to_square]
     // Records how often moves lead to beta cutoffs
     int historyTable[2][64][64];
     
+    // Search statistics
+    long nodesSearched;
+    std::chrono::time_point<std::chrono::high_resolution_clock> searchStartTime;
+    
 public:
     Engine(Game& g, int depth = 3, int ttSizeMB = 64) 
-        : game(g), maxDepth(depth), transpositionTable(ttSizeMB) {
-        // Initialize killer moves to invalid moves
+        : game(g), maxDepth(depth), transpositionTable(ttSizeMB), nodesSearched(0) {
+        // Initialize tables
         clearKillerMoves();
-        // Initialize history table
         clearHistoryTable();
+        clearCounterMoves();
     }
     
     // Set the search depth
@@ -53,6 +64,19 @@ public:
         }
     }
     
+    // Clear the counter moves
+    void clearCounterMoves() {
+        for (int pieceType = 0; pieceType < 6; pieceType++) {
+            for (int color = 0; color < 2; color++) {
+                for (int from = 0; from < 64; from++) {
+                    for (int to = 0; to < 64; to++) {
+                        counterMoves[pieceType][color][from][to] = Move(Position(), Position());
+                    }
+                }
+            }
+        }
+    }
+    
     // Clear the history table
     void clearHistoryTable() {
         for (int color = 0; color < 2; color++) {
@@ -64,9 +88,33 @@ public:
         }
     }
     
+    // Get the principal variation as a string
+    std::string getPVString() const;
+    
+    // Get the number of nodes searched
+    long getNodesSearched() const { return nodesSearched; }
+    
+    // Reset search statistics
+    void resetStats() { nodesSearched = 0; }
+    
 private:
+    // Iterative deepening search
+    Move iterativeDeepeningSearch(Board& board, int maxDepth, uint64_t hashKey);
+    
     // Alpha-beta minimax search algorithm with transposition table
-    int alphaBeta(Board& board, int depth, int alpha, int beta, bool maximizingPlayer, Move& bestMove, uint64_t hashKey, int ply);
+    int alphaBeta(Board& board, int depth, int alpha, int beta, bool maximizingPlayer, 
+                  std::vector<Move>& pv, uint64_t hashKey, int ply, Move lastMove);
+    
+    // Principal Variation Search (PVS) - optimization of alpha-beta
+    int pvSearch(Board& board, int depth, int alpha, int beta, bool maximizingPlayer, 
+                std::vector<Move>& pv, uint64_t hashKey, int ply, Move lastMove);
+    
+    // Static Exchange Evaluation (SEE)
+    int seeCapture(const Board& board, const Move& move) const;
+    int see(const Board& board, const Position& square, Color side, int capture_value) const;
+    
+    // Get the approximate value of a piece for SEE
+    int getPieceValue(PieceType type) const;
     
     // Evaluate a board position
     int evaluatePosition(const Board& board);
@@ -80,6 +128,12 @@ private:
     // Check if a move is a killer move at the current ply
     bool isKillerMove(const Move& move, int ply) const;
     
+    // Store a counter move
+    void storeCounterMove(const Move& lastMove, const Move& counterMove);
+    
+    // Get counter move for an opponent's move
+    Move getCounterMove(const Move& lastMove) const;
+    
     // Update history heuristic table for a move that caused beta cutoff
     void updateHistoryScore(const Move& move, int depth, Color color);
     
@@ -87,7 +141,12 @@ private:
     int getHistoryScore(const Move& move, Color color) const;
     
     // Get score for move ordering
-    int getMoveScore(const Move& move, const Board& board, const Move& ttMove, int ply, Color sideToMove) const;
+    int getMoveScore(const Move& move, const Board& board, const Move& ttMove, 
+                     const std::vector<Move>& pv, int ply, Color sideToMove, 
+                     const Move& lastMove) const;
+    
+    // Check if a move is part of the principal variation
+    bool isPVMove(const Move& move, const std::vector<Move>& pv, int ply) const;
     
     // Piece value tables for positional evaluation
     static const int pawnTable[64];
