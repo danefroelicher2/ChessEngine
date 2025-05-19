@@ -132,6 +132,35 @@ Move Engine::getBestMove() {
     return bestMove;
 }
 
+int Engine::getMVVLVAScore(PieceType attacker, PieceType victim) const {
+    // Get the values of pieces for MVV-LVA calculation
+    int victimValue;
+    switch (victim) {
+        case PieceType::PAWN:   victimValue = PAWN_VALUE; break;
+        case PieceType::KNIGHT: victimValue = KNIGHT_VALUE; break;
+        case PieceType::BISHOP: victimValue = BISHOP_VALUE; break;
+        case PieceType::ROOK:   victimValue = ROOK_VALUE; break;
+        case PieceType::QUEEN:  victimValue = QUEEN_VALUE; break;
+        case PieceType::KING:   victimValue = KING_VALUE; break;
+        default:                victimValue = 0; break;
+    }
+    
+    int attackerValue;
+    switch (attacker) {
+        case PieceType::PAWN:   attackerValue = PAWN_VALUE; break;
+        case PieceType::KNIGHT: attackerValue = KNIGHT_VALUE; break;
+        case PieceType::BISHOP: attackerValue = BISHOP_VALUE; break;
+        case PieceType::ROOK:   attackerValue = ROOK_VALUE; break;
+        case PieceType::QUEEN:  attackerValue = QUEEN_VALUE; break;
+        case PieceType::KING:   attackerValue = KING_VALUE; break;
+        default:                attackerValue = 0; break;
+    }
+    
+    // MVV-LVA score: 10 * victim value - attacker value
+    // The multiplier makes victim value more important than attacker value
+    return 10 * victimValue - attackerValue;
+}
+
 int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximizingPlayer, Move& bestMove, uint64_t hashKey) {
     // Check transposition table for this position
     int originalAlpha = alpha;
@@ -167,12 +196,27 @@ int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximiz
         }
     }
     
-    // Add some move ordering heuristics - try captures first
+    // Add move ordering heuristics - MVV-LVA for captures, then try non-captures
     std::stable_sort(legalMoves.begin(), legalMoves.end(), 
-                    [&board](const Move& a, const Move& b) {
-                        bool aCaptures = board.getPieceAt(a.to) != nullptr;
-                        bool bCaptures = board.getPieceAt(b.to) != nullptr;
-                        return aCaptures && !bCaptures; // true if a captures and b doesn't
+                    [&board, this](const Move& a, const Move& b) {
+                        auto pieceA = board.getPieceAt(a.from);
+                        auto pieceB = board.getPieceAt(b.from);
+                        auto capturedA = board.getPieceAt(a.to);
+                        auto capturedB = board.getPieceAt(b.to);
+                        
+                        // If one is a capture and the other is not, prioritize the capture
+                        if (capturedA && !capturedB) return true;
+                        if (!capturedA && capturedB) return false;
+                        
+                        // If both are captures, use MVV-LVA
+                        if (capturedA && capturedB) {
+                            int scoreA = getMVVLVAScore(pieceA->getType(), capturedA->getType());
+                            int scoreB = getMVVLVAScore(pieceB->getType(), capturedB->getType());
+                            return scoreA > scoreB; // Higher score first
+                        }
+                        
+                        // Otherwise, keep original order (could add more heuristics here)
+                        return false;
                     });
     
     NodeType nodeType = NodeType::ALPHA;
