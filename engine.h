@@ -19,11 +19,17 @@ private:
     // We'll store 2 killer moves per ply
     Move killerMoves[MAX_PLY][2];
     
+    // History heuristic table [color][from_square][to_square]
+    // Records how often moves lead to beta cutoffs
+    int historyTable[2][64][64];
+    
 public:
     Engine(Game& g, int depth = 3, int ttSizeMB = 64) 
         : game(g), maxDepth(depth), transpositionTable(ttSizeMB) {
         // Initialize killer moves to invalid moves
         clearKillerMoves();
+        // Initialize history table
+        clearHistoryTable();
     }
     
     // Set the search depth
@@ -47,6 +53,17 @@ public:
         }
     }
     
+    // Clear the history table
+    void clearHistoryTable() {
+        for (int color = 0; color < 2; color++) {
+            for (int from = 0; from < 64; from++) {
+                for (int to = 0; to < 64; to++) {
+                    historyTable[color][from][to] = 0;
+                }
+            }
+        }
+    }
+    
 private:
     // Alpha-beta minimax search algorithm with transposition table
     int alphaBeta(Board& board, int depth, int alpha, int beta, bool maximizingPlayer, Move& bestMove, uint64_t hashKey, int ply);
@@ -63,8 +80,14 @@ private:
     // Check if a move is a killer move at the current ply
     bool isKillerMove(const Move& move, int ply) const;
     
+    // Update history heuristic table for a move that caused beta cutoff
+    void updateHistoryScore(const Move& move, int depth, Color color);
+    
+    // Get the history score for a move
+    int getHistoryScore(const Move& move, Color color) const;
+    
     // Get score for move ordering
-    int getMoveScore(const Move& move, const Board& board, const Move& ttMove, int ply) const;
+    int getMoveScore(const Move& move, const Board& board, const Move& ttMove, int ply, Color sideToMove) const;
     
     // Piece value tables for positional evaluation
     static const int pawnTable[64];
