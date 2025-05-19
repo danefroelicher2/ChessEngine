@@ -112,9 +112,12 @@ Move Engine::getBestMove() {
     // Increment the age of the transposition table
     transpositionTable.incrementAge();
     
+    // Clear killer moves
+    clearKillerMoves();
+    
     // Use alpha-beta pruning to find the best move
     alphaBeta(board, maxDepth, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), 
-              board.getSideToMove() == Color::WHITE, bestMove, hashKey);
+              board.getSideToMove() == Color::WHITE, bestMove, hashKey, 0);
     
     // If by some chance we didn't find a valid move, try a simple approach
     if (!bestMove.from.isValid() || !bestMove.to.isValid()) {
@@ -161,7 +164,74 @@ int Engine::getMVVLVAScore(PieceType attacker, PieceType victim) const {
     return 10 * victimValue - attackerValue;
 }
 
-int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximizingPlayer, Move& bestMove, uint64_t hashKey) {
+void Engine::storeKillerMove(const Move& move, int ply) {
+    // Don't store captures as killer moves, they'll be handled by MVV-LVA
+    // Also don't store invalid moves
+    if (!move.from.isValid() || !move.to.isValid()) {
+        return;
+    }
+    
+    // Don't store the same killer move twice
+    if (killerMoves[ply][0].from.row == move.from.row && 
+        killerMoves[ply][0].from.col == move.from.col && 
+        killerMoves[ply][0].to.row == move.to.row && 
+        killerMoves[ply][0].to.col == move.to.col) {
+        return;
+    }
+    
+    // Shift the killer moves and add the new one
+    killerMoves[ply][1] = killerMoves[ply][0];
+    killerMoves[ply][0] = move;
+}
+
+bool Engine::isKillerMove(const Move& move, int ply) const {
+    // Check if the move matches either of the killer moves at this ply
+    for (int i = 0; i < 2; i++) {
+        if (killerMoves[ply][i].from.row == move.from.row && 
+            killerMoves[ply][i].from.col == move.from.col && 
+            killerMoves[ply][i].to.row == move.to.row && 
+            killerMoves[ply][i].to.col == move.to.col) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+int Engine::getMoveScore(const Move& move, const Board& board, const Move& ttMove, int ply) const {
+    // 1. Transposition table move gets highest priority
+    if (ttMove.from.isValid() && ttMove.to.isValid() &&
+        ttMove.from.row == move.from.row && ttMove.from.col == move.from.col &&
+        ttMove.to.row == move.to.row && ttMove.to.col == move.to.col) {
+        return 30000; // Highest score
+    }
+    
+    // 2. Captures scored by MVV-LVA
+    auto capturedPiece = board.getPieceAt(move.to);
+    if (capturedPiece) {
+        auto movingPiece = board.getPieceAt(move.from);
+        if (movingPiece) {
+            return 20000 + getMVVLVAScore(movingPiece->getType(), capturedPiece->getType());
+        }
+    }
+    
+    // 3. Killer moves
+    if (isKillerMove(move, ply)) {
+        // First killer move gets slightly higher score than second
+        if (killerMoves[ply][0].from.row == move.from.row && 
+            killerMoves[ply][0].from.col == move.from.col && 
+            killerMoves[ply][0].to.row == move.to.row && 
+            killerMoves[ply][0].to.col == move.to.col) {
+            return 10100;
+        }
+        return 10000;
+    }
+    
+    // 4. All other moves (could add more heuristics here later)
+    return 0;
+}
+
+int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximizingPlayer, Move& bestMove, uint64_t hashKey, int ply) {
     // Check transposition table for this position
     int originalAlpha = alpha;
     Move ttMove(Position(), Position());
@@ -180,44 +250,18 @@ int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximiz
     // Generate all legal moves
     std::vector<Move> legalMoves = board.generateLegalMoves();
     
-    // If we have a promising move from the transposition table, try it first
-    if (ttMove.from.isValid() && ttMove.to.isValid()) {
-        auto it = std::find_if(legalMoves.begin(), legalMoves.end(), 
-                              [&ttMove](const Move& m) { 
-                                  return m.from.row == ttMove.from.row && 
-                                         m.from.col == ttMove.from.col && 
-                                         m.to.row == ttMove.to.row && 
-                                         m.to.col == ttMove.to.col; 
-                              });
-        
-        if (it != legalMoves.end()) {
-            // Move the transposition table move to the front
-            std::swap(*it, legalMoves[0]);
-        }
+    // Score each move for ordering
+    std::vector<std::pair<int, Move>> scoredMoves;
+    for (const auto& move : legalMoves) {
+        int moveScore = getMoveScore(move, board, ttMove, ply);
+        scoredMoves.push_back(std::make_pair(moveScore, move));
     }
     
-    // Add move ordering heuristics - MVV-LVA for captures, then try non-captures
-    std::stable_sort(legalMoves.begin(), legalMoves.end(), 
-                    [&board, this](const Move& a, const Move& b) {
-                        auto pieceA = board.getPieceAt(a.from);
-                        auto pieceB = board.getPieceAt(b.from);
-                        auto capturedA = board.getPieceAt(a.to);
-                        auto capturedB = board.getPieceAt(b.to);
-                        
-                        // If one is a capture and the other is not, prioritize the capture
-                        if (capturedA && !capturedB) return true;
-                        if (!capturedA && capturedB) return false;
-                        
-                        // If both are captures, use MVV-LVA
-                        if (capturedA && capturedB) {
-                            int scoreA = getMVVLVAScore(pieceA->getType(), capturedA->getType());
-                            int scoreB = getMVVLVAScore(pieceB->getType(), capturedB->getType());
-                            return scoreA > scoreB; // Higher score first
-                        }
-                        
-                        // Otherwise, keep original order (could add more heuristics here)
-                        return false;
-                    });
+    // Sort moves by score (descending)
+    std::sort(scoredMoves.begin(), scoredMoves.end(), 
+              [](const std::pair<int, Move>& a, const std::pair<int, Move>& b) {
+                  return a.first > b.first;
+              });
     
     NodeType nodeType = NodeType::ALPHA;
     Move localBestMove = legalMoves.empty() ? Move(Position(), Position()) : legalMoves[0];
@@ -225,7 +269,9 @@ int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximiz
     if (maximizingPlayer) {
         int maxEval = std::numeric_limits<int>::min();
         
-        for (const auto& move : legalMoves) {
+        for (const auto& scoredMove : scoredMoves) {
+            const Move& move = scoredMove.second;
+            
             // Make a copy of the board
             Board tempBoard = board;
             
@@ -237,7 +283,7 @@ int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximiz
             
             // Recursively evaluate the position
             Move dummy(Position(), Position());
-            int eval = alphaBeta(tempBoard, depth - 1, alpha, beta, false, dummy, newHashKey);
+            int eval = alphaBeta(tempBoard, depth - 1, alpha, beta, false, dummy, newHashKey, ply + 1);
             
             // Update the best move if this move is better
             if (eval > maxEval) {
@@ -252,6 +298,11 @@ int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximiz
             // Alpha-beta pruning
             alpha = std::max(alpha, eval);
             if (beta <= alpha) {
+                // Store this move as a killer move if it's not a capture
+                if (board.getPieceAt(move.to) == nullptr) {
+                    storeKillerMove(move, ply);
+                }
+                
                 nodeType = NodeType::BETA; // Fail high
                 break;
             }
@@ -267,7 +318,9 @@ int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximiz
     } else {
         int minEval = std::numeric_limits<int>::max();
         
-        for (const auto& move : legalMoves) {
+        for (const auto& scoredMove : scoredMoves) {
+            const Move& move = scoredMove.second;
+            
             // Make a copy of the board
             Board tempBoard = board;
             
@@ -279,7 +332,7 @@ int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximiz
             
             // Recursively evaluate the position
             Move dummy(Position(), Position());
-            int eval = alphaBeta(tempBoard, depth - 1, alpha, beta, true, dummy, newHashKey);
+            int eval = alphaBeta(tempBoard, depth - 1, alpha, beta, true, dummy, newHashKey, ply + 1);
             
             // Update the best move if this move is better
             if (eval < minEval) {
@@ -294,6 +347,11 @@ int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximiz
             // Alpha-beta pruning
             beta = std::min(beta, eval);
             if (beta <= alpha) {
+                // Store this move as a killer move if it's not a capture
+                if (board.getPieceAt(move.to) == nullptr) {
+                    storeKillerMove(move, ply);
+                }
+                
                 nodeType = NodeType::ALPHA; // Fail low
                 break;
             }
