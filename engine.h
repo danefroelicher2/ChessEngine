@@ -35,6 +35,9 @@ private:
     // Evaluate a board position
     int evaluatePosition(const Board& board);
     
+    // MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) scoring
+    int getMVVLVAScore(PieceType attacker, PieceType victim) const;
+    
     // Piece value tables for positional evaluation
     static const int pawnTable[64];
     static const int knightTable[64];
@@ -55,3 +58,5 @@ private:
     // Check if the game is in the endgame phase
     bool isEndgame(const Board& board) const;
 };
+
+#endif // ENGINE_H
