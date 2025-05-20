@@ -4,6 +4,7 @@
 #include "main.h"
 #include "piece.h"
 #include "piece_types.h"
+#include "board_state.h"
 
 class Board {
 private:
@@ -37,8 +38,12 @@ public:
     // Set a piece at a specific position
     void setPieceAt(const Position& pos, std::shared_ptr<Piece> piece);
     
-    // Make a move on the board
-    bool makeMove(const Move& move);
+    // Add these method declarations to the Board class in board.h:
+bool makeMove(const Move& move) {
+    BoardState dummyState;
+    return makeMove(move, dummyState);
+}
+bool unmakeMove(const Move& move, const BoardState& previousState);
     
     // Generate all legal moves for the current side to move
     std::vector<Move> generateLegalMoves() const;
