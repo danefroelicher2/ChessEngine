@@ -127,6 +127,11 @@ private:
     bool timeManaged;  // whether to use time management
 
 private:
+    // Search instability detection
+    bool positionIsUnstable;
+    int unstableExtensionPercent; // Additional percentage of time for unstable positions
+
+private:
     // Iterative deepening search
     Move Engine::iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashKey)
     {
