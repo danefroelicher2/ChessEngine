@@ -132,6 +132,9 @@ private:
     bool positionIsUnstable;
     int unstableExtensionPercent; // Additional percentage of time for unstable positions
 
+    private:
+    int getDepthAdjustment(const Move& move, const Board& board, bool isPVMove, int moveIndex) const;
+
 private:
     // Iterative deepening search
     Move Engine::iterativeDeepeningSearch(Board& board, int maxDepth, uint64_t hashKey) {

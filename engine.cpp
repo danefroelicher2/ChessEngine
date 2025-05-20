@@ -213,6 +213,43 @@ int Engine::see(const Board& board, const Position& square, Color side, int capt
     return std::max(0, score); // Don't make a capture if it's worse than doing nothing
 }
 
+int Engine::getDepthAdjustment(const Move& move, const Board& board, bool isPVMove, int moveIndex) const {
+    // For PV moves, no reduction
+    if (isPVMove) {
+        return 0;
+    }
+    
+    // Losing captures shouldn't get full depth
+    auto capturedPiece = board.getPieceAt(move.to);
+    if (capturedPiece && seeCapture(board, move) < 0) {
+        return -1;
+    }
+    
+    // First few moves should get full depth
+    if (moveIndex < 3) {
+        return 0;
+    }
+    
+    // Late moves get progressively less depth
+    int reduction = 0;
+    
+    // Base reduction on move index
+    if (moveIndex >= 3) {
+        reduction = 1;
+    }
+    if (moveIndex >= 6) {
+        reduction = 2;
+    }
+    if (moveIndex >= 12) {
+        reduction = 3;
+    }
+    
+    // Don't reduce too much at low depths
+    reduction = std::min(reduction, 2);
+    
+    return -reduction;
+}
+
 // Get the approximate value of a piece for SEE
 int Engine::getPieceValue(PieceType type) const {
     switch (type) {
