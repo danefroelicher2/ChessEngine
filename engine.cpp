@@ -600,6 +600,36 @@ int Engine::quiescenceSearch(Board& board, int alpha, int beta, uint64_t hashKey
         auto movingPiece = board.getPieceAt(move.from);
         auto capturedPiece = board.getPieceAt(move.to);
         
+        bool isCapture = capturedPiece != nullptr || 
+                         (movingPiece->getType() == PieceType::PAWN && 
+                          move.to == board.getEnPassantTarget());
+        
+        // Delta pruning - skip captures that can't improve alpha
+        if (isCapture && !inCheck && qDepth > 0) {
+            // Get the maximum possible material gain from this capture
+            int captureValue = 0;
+            if (capturedPiece) {
+                captureValue = getPieceValue(capturedPiece->getType());
+            } else if (move.to == board.getEnPassantTarget()) {
+                captureValue = PAWN_VALUE;
+            }
+            
+            // Add potential promotion bonus
+            int promotionBonus = 0;
+            if (movingPiece->getType() == PieceType::PAWN && 
+                (move.to.row == 0 || move.to.row == 7)) {
+                promotionBonus = QUEEN_VALUE - PAWN_VALUE;
+            }
+            
+            // Delta margin - a buffer to account for positional gains
+            const int DELTA_MARGIN = 200;
+            
+            // Skip if even the maximum possible gain can't improve alpha
+            if (standPat + captureValue + promotionBonus + DELTA_MARGIN <= alpha) {
+                continue;  // Skip this capture - it can't improve alpha
+            }
+        }
+        
         if (capturedPiece) {
             // MVV-LVA scoring for captures
             moveScore = 10000000 + getMVVLVAScore(movingPiece->getType(), capturedPiece->getType());
@@ -608,7 +638,7 @@ int Engine::quiescenceSearch(Board& board, int alpha, int beta, uint64_t hashKey
             int seeScore = seeCapture(board, move);
             if (seeScore < 0) {
                 // Skip bad captures at deeper ply depths
-                if (ply > 2 && !inCheck) continue;
+                if (qDepth > 2 && !inCheck) continue;
                 
                 // Penalize bad captures, but still consider them
                 moveScore += seeScore;
@@ -646,8 +676,11 @@ int Engine::quiescenceSearch(Board& board, int alpha, int beta, uint64_t hashKey
         // Calculate new hash key
         uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
         
+        // Apply adaptive depth - reduce depth for specific move types
+        int newQDepth = qDepth + 1;
+        
         // Recursively search
-        int score = -quiescenceSearch(board, -beta, -alpha, newHashKey, ply + 1);
+        int score = -quiescenceSearch(board, -beta, -alpha, newHashKey, ply + 1, newQDepth);
         
         // Unmake the move
         board.unmakeMove(move, previousState);
