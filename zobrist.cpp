@@ -84,6 +84,9 @@ uint64_t Zobrist::generateHashKey(const Board& board) {
 }
 
 uint64_t Zobrist::updateHashKey(uint64_t currentKey, const Move& move, const Board& board) {
+    // Add the initialization check that was missing
+    if (!initialized) initialize();
+    
     uint64_t newKey = currentKey;
     
     // Get the piece being moved
