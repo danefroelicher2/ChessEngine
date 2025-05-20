@@ -37,14 +37,15 @@ private:
     std::chrono::time_point<std::chrono::high_resolution_clock> searchStartTime;
 
 public:
-    Engine(Game &g, int depth = 3, int ttSizeMB = 64)
-        : game(g), maxDepth(depth), transpositionTable(ttSizeMB), nodesSearched(0)
-    {
-        // Initialize tables
-        clearKillerMoves();
-        clearHistoryTable();
-        clearCounterMoves();
-    }
+Engine(Game &g, int depth = 3, int ttSizeMB = 64, bool useTimeManagement = false)
+    : game(g), maxDepth(depth), transpositionTable(ttSizeMB), nodesSearched(0),
+      timeAllocated(0), timeBuffer(100), timeManaged(useTimeManagement)
+{
+    // Initialize tables
+    clearKillerMoves();
+    clearHistoryTable();
+    clearCounterMoves();
+}
 
     // Set the search depth
     void setDepth(int depth) { maxDepth = depth; }
@@ -111,6 +112,12 @@ public:
 
     // Reset search statistics
     void resetStats() { nodesSearched = 0; }
+
+private:
+    // Time management variables
+    int timeAllocated; // time in milliseconds allocated for this move
+    int timeBuffer;    // safety buffer to avoid timeout
+    bool timeManaged;  // whether to use time management
 
 private:
     // Iterative deepening search
