@@ -37,15 +37,22 @@ private:
     std::chrono::time_point<std::chrono::high_resolution_clock> searchStartTime;
 
 public:
-Engine(Game &g, int depth = 3, int ttSizeMB = 64, bool useTimeManagement = false)
-    : game(g), maxDepth(depth), transpositionTable(ttSizeMB), nodesSearched(0),
-      timeAllocated(0), timeBuffer(100), timeManaged(useTimeManagement)
-{
-    // Initialize tables
-    clearKillerMoves();
-    clearHistoryTable();
-    clearCounterMoves();
-}
+    Engine(Game &g, int depth = 3, int ttSizeMB = 64, bool useTimeManagement = false)
+        : game(g), maxDepth(depth), transpositionTable(ttSizeMB), nodesSearched(0),
+          timeAllocated(0), timeBuffer(100), timeManaged(useTimeManagement)
+    {
+        // Initialize tables
+        clearKillerMoves();
+        clearHistoryTable();
+        clearCounterMoves();
+    }
+
+public:
+    void setTimeAllocation(int timeInMs)
+    {
+        timeAllocated = timeInMs;
+        timeManaged = true;
+    }
 
     // Set the search depth
     void setDepth(int depth) { maxDepth = depth; }
@@ -121,7 +128,126 @@ private:
 
 private:
     // Iterative deepening search
-    Move iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashKey);
+    Move Engine::iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashKey)
+    {
+        principalVariation.clear();
+        Move bestMove(Position(), Position());
+        int bestScore = 0;
+
+        // For time management
+        long nodesPrevious = 0;
+        long nodesTotal = 0;
+
+        // For aspiration windows
+        int windowSize = 50;
+
+        // Iterative deepening loop
+        for (int depth = 1; depth <= maxDepth; depth++)
+        {
+            std::vector<Move> pv;
+
+            // Record nodes before this iteration
+            nodesPrevious = nodesSearched;
+
+            // Color is set to true for maximizing player (WHITE), false for minimizing player (BLACK)
+            bool maximizingPlayer = board.getSideToMove() == Color::WHITE;
+
+            int alpha, beta, delta = windowSize;
+            int score;
+
+            // For depth 1, use full window
+            if (depth == 1)
+            {
+                alpha = -100000;
+                beta = 100000;
+                score = pvSearch(board, depth, alpha, beta, maximizingPlayer, pv, hashKey, 0, Move(Position(), Position()));
+            }
+            else
+            {
+                // Use aspiration windows for deeper searches
+                alpha = bestScore - delta;
+                beta = bestScore + delta;
+
+                // Try with narrow window first
+                while (true)
+                {
+                    score = pvSearch(board, depth, alpha, beta, maximizingPlayer, pv, hashKey, 0, Move(Position(), Position()));
+
+                    // If the score falls within our window, we're good
+                    if (score > alpha && score < beta)
+                    {
+                        break;
+                    }
+
+                    // If we failed low (score <= alpha), widen the window
+                    if (score <= alpha)
+                    {
+                        alpha = std::max(-100000, alpha - delta);
+                        delta *= 2; // Increase window size
+                        std::cout << "Aspiration fail low. New alpha: " << alpha << std::endl;
+                    }
+                    // If we failed high (score >= beta), widen the window
+                    else if (score >= beta)
+                    {
+                        beta = std::min(100000, beta + delta);
+                        delta *= 2; // Increase window size
+                        std::cout << "Aspiration fail high. New beta: " << beta << std::endl;
+                    }
+
+                    // If window is already full, break
+                    if (alpha <= -99000 && beta >= 99000)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            // Store the best move and score if we got valid results
+            if (!pv.empty())
+            {
+                bestMove = pv[0];
+                principalVariation = pv;
+                bestScore = score;
+            }
+
+            // Log the progress
+            auto endTime = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - searchStartTime);
+
+            // Nodes for this iteration
+            long nodesThisIteration = nodesSearched - nodesPrevious;
+            nodesTotal = nodesSearched;
+
+            std::cout << "Depth: " << depth
+                      << ", Score: " << score
+                      << ", Nodes: " << nodesSearched
+                      << ", Time: " << duration.count() << "ms"
+                      << ", NPS: " << static_cast<long>(nodesSearched * 1000.0 / duration.count())
+                      << ", PV: " << getPVString() << std::endl;
+
+            // Time management check
+            if (timeManaged && timeAllocated > 0)
+            {
+                // Check if we should start next iteration
+                int timeUsed = duration.count();
+
+                // Estimate time for next iteration: typically 4-5x more nodes required
+                long estimatedNodesNext = nodesThisIteration * 4.5;
+                double estimatedTimeNext = (double)timeUsed * estimatedNodesNext / nodesThisIteration;
+
+                // If we estimate we'll exceed our time allocation for the next iteration, stop now
+                if (timeUsed + estimatedTimeNext + timeBuffer > timeAllocated)
+                {
+                    std::cout << "Stopping search due to time constraints. Time used: "
+                              << timeUsed << "ms, Estimated for next: "
+                              << estimatedTimeNext << "ms" << std::endl;
+                    break;
+                }
+            }
+        }
+
+        return bestMove;
+    }
 
     // Alpha-beta minimax search algorithm with transposition table
     int alphaBeta(Board &board, int depth, int alpha, int beta, bool maximizingPlayer,
