@@ -735,9 +735,8 @@ int Engine::quiescenceSearch(Board& board, int alpha, int beta, uint64_t hashKey
     return alpha;
 }
 
-// Principal Variation Search (PVS) - a more efficient version of alpha-beta for PV nodes
 int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizingPlayer, 
-                    std::vector<Move>& pv, uint64_t hashKey, int ply, Move lastMove) {
+                     std::vector<Move>& pv, uint64_t hashKey, int ply, Move lastMove) {
     // Track nodes searched
     nodesSearched++;
     
@@ -753,18 +752,9 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
         return score; // Return cached result if available (but don't use TT at root)
     }
     
-    // If we've reached the maximum depth or the game is over, evaluate the position
-     if (depth == 0) {
-        return quiescenceSearch(board, alpha, beta, hashKey, ply);
-    }
-    
-    // If the game is over, return the evaluation
+    // If we've reached the maximum depth, use quiescence search
     if (depth == 0) {
-        return quiescenceSearch(board, alpha, beta, hashKey, ply, 0);
-    }
-    
-   if (depth == 0) {
-        return quiescenceSearch(board, alpha, beta, hashKey, ply, 0, Position());
+        return quiescenceSearch(board, alpha, beta, hashKey, ply);
     }
     
     // If the game is over, return the evaluation
@@ -825,11 +815,12 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
         for (size_t i = 0; i < scoredMoves.size(); i++) {
             const Move& move = scoredMoves[i].second;
             
-            // Make a copy of the board
-            Board tempBoard = board;
+            // Save board state for unmaking move
+            BoardState previousState;
             
             // Make the move
-            tempBoard.makeMove(move);
+            if (!board.makeMove(move, previousState))
+                continue;
             
             // Calculate the new hash key after the move
             uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
@@ -841,17 +832,20 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
             // Full window search for first move, null window for others
             if (foundPV) {
                 // Try a null window search first
-                eval = -pvSearch(tempBoard, depth - 1, -alpha - 1, -alpha, false, childPV, newHashKey, ply + 1, move);
+                eval = -pvSearch(board, depth - 1, -alpha - 1, -alpha, false, childPV, newHashKey, ply + 1, move);
                 
                 // If we might fail high, do a full window search
                 if (eval > alpha && eval < beta) {
                     childPV.clear();
-                    eval = -pvSearch(tempBoard, depth - 1, -beta, -alpha, false, childPV, newHashKey, ply + 1, move);
+                    eval = -pvSearch(board, depth - 1, -beta, -alpha, false, childPV, newHashKey, ply + 1, move);
                 }
             } else {
                 // First move gets a full window search
-                eval = -pvSearch(tempBoard, depth - 1, -beta, -alpha, false, childPV, newHashKey, ply + 1, move);
+                eval = -pvSearch(board, depth - 1, -beta, -alpha, false, childPV, newHashKey, ply + 1, move);
             }
+            
+            // Unmake the move
+            board.unmakeMove(move, previousState);
             
             // Update the best move if this move is better
             if (eval > maxEval) {
@@ -901,11 +895,12 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
         for (size_t i = 0; i < scoredMoves.size(); i++) {
             const Move& move = scoredMoves[i].second;
             
-            // Make a copy of the board
-            Board tempBoard = board;
+            // Save board state for unmaking move
+            BoardState previousState;
             
             // Make the move
-            tempBoard.makeMove(move);
+            if (!board.makeMove(move, previousState))
+                continue;
             
             // Calculate the new hash key after the move
             uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
@@ -917,17 +912,20 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
             // Full window search for first move, null window for others
             if (foundPV) {
                 // Try a null window search first
-                eval = -pvSearch(tempBoard, depth - 1, -alpha - 1, -alpha, true, childPV, newHashKey, ply + 1, move);
+                eval = -pvSearch(board, depth - 1, -alpha - 1, -alpha, true, childPV, newHashKey, ply + 1, move);
                 
                 // If we might fail high, do a full window search
                 if (eval > alpha && eval < beta) {
                     childPV.clear();
-                    eval = -pvSearch(tempBoard, depth - 1, -beta, -alpha, true, childPV, newHashKey, ply + 1, move);
+                    eval = -pvSearch(board, depth - 1, -beta, -alpha, true, childPV, newHashKey, ply + 1, move);
                 }
             } else {
                 // First move gets a full window search
-                eval = -pvSearch(tempBoard, depth - 1, -beta, -alpha, true, childPV, newHashKey, ply + 1, move);
+                eval = -pvSearch(board, depth - 1, -beta, -alpha, true, childPV, newHashKey, ply + 1, move);
             }
+            
+            // Unmake the move
+            board.unmakeMove(move, previousState);
             
             // Update the best move if this move is better
             if (eval < minEval) {
