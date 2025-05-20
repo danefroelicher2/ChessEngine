@@ -521,7 +521,6 @@ int Engine::getMoveScore(const Move& move, const Board& board, const Move& ttMov
     return getHistoryScore(move, sideToMove);
 }
 
-// Add this function to your Engine class in engine.cpp
 // Quiescence search - continues capturing sequences beyond regular search
 int Engine::quiescenceSearch(Board& board, int alpha, int beta, uint64_t hashKey, int ply) {
     // Track nodes searched
@@ -542,51 +541,72 @@ int Engine::quiescenceSearch(Board& board, int alpha, int beta, uint64_t hashKey
     if (ply >= MAX_PLY - 1)
         return standPat;
     
-    // Generate capture moves and potentially checks
-    std::vector<Move> qMoves; // quiescence moves
-    auto legalMoves = board.generateLegalMoves();
-    
     // Flag to track if we're in check
     bool inCheck = board.isInCheck();
-    
-    // In check? Consider all legal moves for check evasion
+
+    // Stage 1: If we're in check, we need to generate all legal moves
     if (inCheck) {
-        qMoves = legalMoves; // Consider all moves when in check
-    } else {
-        // Not in check - consider captures and potentially check-giving moves
+        auto legalMoves = board.generateLegalMoves();
+        
+        // Score and sort the moves
+        std::vector<std::pair<int, Move>> scoredMoves;
         for (const auto& move : legalMoves) {
-            // Is it a capture?
-            bool isCapture = board.getPieceAt(move.to) != nullptr || 
-                (board.getPieceAt(move.from)->getType() == PieceType::PAWN && 
-                 move.to == board.getEnPassantTarget());
+            int moveScore = 1000; // Base score for check evasions
             
-            if (isCapture) {
-                qMoves.push_back(move);
-                continue;
+            auto capturedPiece = board.getPieceAt(move.to);
+            if (capturedPiece) {
+                auto movingPiece = board.getPieceAt(move.from);
+                moveScore = 10000 + getMVVLVAScore(movingPiece->getType(), capturedPiece->getType());
             }
             
-            // Check if the move gives check (at lower depths only to control explosion)
-            // This is relatively expensive, so we only do it at shallow depths
-            if (ply < 2) {
-                // Save board state for unmaking move
-                BoardState tempState;
-                
-                // Make the move
-                if (board.makeMove(move, tempState)) {
-                    // See if this gives check
-                    bool givesCheck = board.isInCheck();
-                    
-                    // Unmake the move
-                    board.unmakeMove(move, tempState);
-                    
-                    // If it gives check, add it to the list
-                    if (givesCheck) {
-                        qMoves.push_back(move);
-                    }
-                }
-            }
+            scoredMoves.push_back(std::make_pair(moveScore, move));
         }
+        
+        // Sort moves by score (descending)
+        std::sort(scoredMoves.begin(), scoredMoves.end(),
+                [](const std::pair<int, Move>& a, const std::pair<int, Move>& b) {
+                    return a.first > b.first;
+                });
+        
+        // Search all legal moves when in check
+        for (const auto& scoredMove : scoredMoves) {
+            const Move& move = scoredMove.second;
+            
+            // Save board state for unmaking move
+            BoardState previousState;
+            
+            // Make the move
+            if (!board.makeMove(move, previousState))
+                continue;
+            
+            // Calculate new hash key
+            uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
+            
+            // Track the capture square if this move is a capture
+            Position newLastCaptureSquare = lastCaptureSquare;
+            if (board.getPieceAt(move.to) != nullptr) {
+                newLastCaptureSquare = move.to;
+            }
+            
+            // Recursively search
+            int score = -quiescenceSearch(board, -beta, -alpha, newHashKey, ply + 1, qDepth + 1, newLastCaptureSquare);
+            
+            // Unmake the move
+            board.unmakeMove(move, previousState);
+            
+            // Beta cutoff
+            if (score >= beta)
+                return beta;
+            
+            // Update alpha
+            if (score > alpha)
+                alpha = score;
+        }
+        
+        return alpha;
     }
+    
+    // If not in check, proceed with selective quiescence search using staged move generation
     
     if (qMoves.empty())
         return standPat;
