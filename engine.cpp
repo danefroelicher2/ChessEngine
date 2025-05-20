@@ -412,8 +412,10 @@ int Engine::getMoveScore(const Move& move, const Board& board, const Move& ttMov
     }
     
     // 2. Principal variation move
-    if (isPVMove(move, pv, ply)) {
-        return 9000000;
+   for (int d = depth; d >= 1; d--) {
+        if (isPVMove(move, d, ply)) {
+            return 9000000 + d * 1000; // PV moves from deeper searches get higher priority
+        }
     }
     
     // 3. Captures (scored by MVV-LVA or SEE)
