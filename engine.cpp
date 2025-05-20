@@ -542,45 +542,85 @@ int Engine::quiescenceSearch(Board& board, int alpha, int beta, uint64_t hashKey
     if (ply >= MAX_PLY - 1)
         return standPat;
     
-    // Generate only capture moves
-    std::vector<Move> captureMoves;
+    // Generate capture moves and potentially checks
+    std::vector<Move> qMoves; // quiescence moves
     auto legalMoves = board.generateLegalMoves();
     
-    for (const auto& move : legalMoves) {
-        // Only consider captures
-        if (board.getPieceAt(move.to) != nullptr || 
-            (board.getPieceAt(move.from)->getType() == PieceType::PAWN && move.to == board.getEnPassantTarget())) {
-            captureMoves.push_back(move);
+    // Flag to track if we're in check
+    bool inCheck = board.isInCheck();
+    
+    // In check? Consider all legal moves for check evasion
+    if (inCheck) {
+        qMoves = legalMoves; // Consider all moves when in check
+    } else {
+        // Not in check - consider captures and potentially check-giving moves
+        for (const auto& move : legalMoves) {
+            // Is it a capture?
+            bool isCapture = board.getPieceAt(move.to) != nullptr || 
+                (board.getPieceAt(move.from)->getType() == PieceType::PAWN && 
+                 move.to == board.getEnPassantTarget());
+            
+            if (isCapture) {
+                qMoves.push_back(move);
+                continue;
+            }
+            
+            // Check if the move gives check (at lower depths only to control explosion)
+            // This is relatively expensive, so we only do it at shallow depths
+            if (ply < 2) {
+                // Save board state for unmaking move
+                BoardState tempState;
+                
+                // Make the move
+                if (board.makeMove(move, tempState)) {
+                    // See if this gives check
+                    bool givesCheck = board.isInCheck();
+                    
+                    // Unmake the move
+                    board.unmakeMove(move, tempState);
+                    
+                    // If it gives check, add it to the list
+                    if (givesCheck) {
+                        qMoves.push_back(move);
+                    }
+                }
+            }
         }
     }
     
-    if (captureMoves.empty())
+    if (qMoves.empty())
         return standPat;
     
-    // Score and sort the capture moves
+    // Score and sort the moves
     std::vector<std::pair<int, Move>> scoredMoves;
-    for (const auto& move : captureMoves) {
+    for (const auto& move : qMoves) {
+        // Score the move
+        int moveScore = 0;
+        
         auto movingPiece = board.getPieceAt(move.from);
         auto capturedPiece = board.getPieceAt(move.to);
         
-        // Score the move
-        int moveScore;
         if (capturedPiece) {
-            // MVV-LVA scoring
-            moveScore = getMVVLVAScore(movingPiece->getType(), capturedPiece->getType());
-        } else {
-            // En passant capture
-            moveScore = getMVVLVAScore(movingPiece->getType(), PieceType::PAWN);
-        }
-        
-        // Static Exchange Evaluation (SEE)
-        int seeScore = seeCapture(board, move);
-        if (seeScore < 0) {
-            // Skip bad captures, but only at deeper ply depths to avoid missing sacrifices
-            if (ply > 2) continue;
+            // MVV-LVA scoring for captures
+            moveScore = 10000000 + getMVVLVAScore(movingPiece->getType(), capturedPiece->getType());
             
-            // Penalize bad captures, but still consider them
-            moveScore += seeScore;
+            // Static Exchange Evaluation (SEE)
+            int seeScore = seeCapture(board, move);
+            if (seeScore < 0) {
+                // Skip bad captures at deeper ply depths
+                if (ply > 2 && !inCheck) continue;
+                
+                // Penalize bad captures, but still consider them
+                moveScore += seeScore;
+            }
+        } else if (board.getPieceAt(move.from)->getType() == PieceType::PAWN && 
+                  move.to == board.getEnPassantTarget()) {
+            // En passant capture
+            moveScore = 10000000 + getMVVLVAScore(movingPiece->getType(), PieceType::PAWN);
+        } else {
+            // Non-capture move (likely a check)
+            // Score lower than captures but still consider
+            moveScore = 1000000;
         }
         
         scoredMoves.push_back(std::make_pair(moveScore, move));
