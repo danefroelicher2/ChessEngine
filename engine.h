@@ -37,15 +37,16 @@ private:
     std::chrono::time_point<std::chrono::high_resolution_clock> searchStartTime;
 
 public:
-    Engine(Game &g, int depth = 3, int ttSizeMB = 64, bool useTimeManagement = false)
-        : game(g), maxDepth(depth), transpositionTable(ttSizeMB), nodesSearched(0),
-          timeAllocated(0), timeBuffer(100), timeManaged(useTimeManagement)
-    {
-        // Initialize tables
-        clearKillerMoves();
-        clearHistoryTable();
-        clearCounterMoves();
-    }
+Engine(Game &g, int depth = 3, int ttSizeMB = 64, bool useTimeManagement = false)
+    : game(g), maxDepth(depth), transpositionTable(ttSizeMB), nodesSearched(0),
+      timeAllocated(0), timeBuffer(100), timeManaged(useTimeManagement),
+      positionIsUnstable(false), unstableExtensionPercent(50)
+{
+    // Initialize tables
+    clearKillerMoves();
+    clearHistoryTable();
+    clearCounterMoves();
+}
 
 public:
     void setTimeAllocation(int timeInMs)
