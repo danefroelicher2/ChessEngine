@@ -639,10 +639,25 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
         return score; // Return cached result if available (but don't use TT at root)
     }
     
+    // Check for search termination conditions
+    if (ply >= MAX_PLY - 1) {
+        return evaluatePosition(board);
+    }
+    
     // If we've reached the maximum depth, use quiescence search
-    if (depth == 0) {
+    if (depth <= 0) {
         return quiescenceSearch(board, alpha, beta, hashKey, ply);
     }
+    
+    // Check if we should extend the search depth
+    int extension = 0;
+    
+    // 1. Check extension - extend search when in check
+    if (board.isInCheck()) {
+        extension = 1;
+    }
+    
+    // Other extensions will be applied after move generation
     
     // If the game is over, return the evaluation
     if (board.isCheckmate() || board.isStalemate()) {
@@ -661,6 +676,11 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
             // Stalemate
             return 0;
         }
+    }
+    
+    // 2. Singular Move Extension - if only one legal move, extend
+    if (legalMoves.size() == 1 && depth >= 2) {
+        extension = std::max(extension, 1);
     }
     
     // Score each move for ordering
@@ -702,6 +722,23 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
         for (size_t i = 0; i < scoredMoves.size(); i++) {
             const Move& move = scoredMoves[i].second;
             
+            // Additional move-specific extensions
+            int moveExtension = extension;
+            
+            // 3. Recapture Extension - extend when recapturing at the same square
+            if (lastMove.to.isValid() && move.to == lastMove.to) {
+                moveExtension = std::max(moveExtension, 1);
+            }
+            
+            // 4. Pawn Push Extension - extend when a pawn makes it to the 7th rank
+            auto piece = board.getPieceAt(move.from);
+            if (piece && piece->getType() == PieceType::PAWN) {
+                int destRow = (board.getSideToMove() == Color::WHITE) ? 6 : 1; // 7th rank
+                if (move.to.row == destRow) {
+                    moveExtension = std::max(moveExtension, 1);
+                }
+            }
+            
             // Save board state for unmaking move
             BoardState previousState;
             
@@ -712,23 +749,23 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
             // Calculate the new hash key after the move
             uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
             
-            // Recursively evaluate the position
+            // Recursively evaluate the position with potential extension
             childPV.clear();
             int eval;
             
             // Full window search for first move, null window for others
             if (foundPV) {
                 // Try a null window search first
-                eval = -pvSearch(board, depth - 1, -alpha - 1, -alpha, false, childPV, newHashKey, ply + 1, move);
+                eval = -pvSearch(board, depth - 1 + moveExtension, -alpha - 1, -alpha, false, childPV, newHashKey, ply + 1, move);
                 
                 // If we might fail high, do a full window search
                 if (eval > alpha && eval < beta) {
                     childPV.clear();
-                    eval = -pvSearch(board, depth - 1, -beta, -alpha, false, childPV, newHashKey, ply + 1, move);
+                    eval = -pvSearch(board, depth - 1 + moveExtension, -beta, -alpha, false, childPV, newHashKey, ply + 1, move);
                 }
             } else {
                 // First move gets a full window search
-                eval = -pvSearch(board, depth - 1, -beta, -alpha, false, childPV, newHashKey, ply + 1, move);
+                eval = -pvSearch(board, depth - 1 + moveExtension, -beta, -alpha, false, childPV, newHashKey, ply + 1, move);
             }
             
             // Unmake the move
@@ -751,7 +788,7 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
             alpha = std::max(alpha, eval);
             if (beta <= alpha) {
                 // Store this move as a killer move if it's not a capture
-                if (board.getPieceAt(move.to) == nullptr) {
+                if (!board.getPieceAt(move.to)) {
                     // Update killer moves table
                     storeKillerMove(move, ply);
                     
@@ -777,10 +814,28 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
         
         return maxEval;
     } else {
+        // Minimizing player - similar code as above with appropriate modifications
         int minEval = std::numeric_limits<int>::max();
         
         for (size_t i = 0; i < scoredMoves.size(); i++) {
             const Move& move = scoredMoves[i].second;
+            
+            // Additional move-specific extensions
+            int moveExtension = extension;
+            
+            // 3. Recapture Extension - extend when recapturing at the same square
+            if (lastMove.to.isValid() && move.to == lastMove.to) {
+                moveExtension = std::max(moveExtension, 1);
+            }
+            
+            // 4. Pawn Push Extension - extend when a pawn makes it to the 7th rank
+            auto piece = board.getPieceAt(move.from);
+            if (piece && piece->getType() == PieceType::PAWN) {
+                int destRow = (board.getSideToMove() == Color::WHITE) ? 6 : 1; // 7th rank
+                if (move.to.row == destRow) {
+                    moveExtension = std::max(moveExtension, 1);
+                }
+            }
             
             // Save board state for unmaking move
             BoardState previousState;
@@ -792,23 +847,23 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
             // Calculate the new hash key after the move
             uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
             
-            // Recursively evaluate the position
+            // Recursively evaluate the position with potential extension
             childPV.clear();
             int eval;
             
             // Full window search for first move, null window for others
             if (foundPV) {
                 // Try a null window search first
-                eval = -pvSearch(board, depth - 1, -alpha - 1, -alpha, true, childPV, newHashKey, ply + 1, move);
+                eval = -pvSearch(board, depth - 1 + moveExtension, -alpha - 1, -alpha, true, childPV, newHashKey, ply + 1, move);
                 
                 // If we might fail high, do a full window search
                 if (eval > alpha && eval < beta) {
                     childPV.clear();
-                    eval = -pvSearch(board, depth - 1, -beta, -alpha, true, childPV, newHashKey, ply + 1, move);
+                    eval = -pvSearch(board, depth - 1 + moveExtension, -beta, -alpha, true, childPV, newHashKey, ply + 1, move);
                 }
             } else {
                 // First move gets a full window search
-                eval = -pvSearch(board, depth - 1, -beta, -alpha, true, childPV, newHashKey, ply + 1, move);
+                eval = -pvSearch(board, depth - 1 + moveExtension, -beta, -alpha, true, childPV, newHashKey, ply + 1, move);
             }
             
             // Unmake the move
@@ -831,7 +886,7 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
             beta = std::min(beta, eval);
             if (beta <= alpha) {
                 // Store this move as a killer move if it's not a capture
-                if (board.getPieceAt(move.to) == nullptr) {
+                if (!board.getPieceAt(move.to)) {
                     // Update killer moves table
                     storeKillerMove(move, ply);
                     
