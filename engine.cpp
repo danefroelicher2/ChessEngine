@@ -521,10 +521,13 @@ int Engine::getMoveScore(const Move& move, const Board& board, const Move& ttMov
     return getHistoryScore(move, sideToMove);
 }
 
-// Quiescence search - continues capturing sequences beyond regular search
 int Engine::quiescenceSearch(Board& board, int alpha, int beta, uint64_t hashKey, int ply) {
     // Track nodes searched
     nodesSearched++;
+    
+    // Maximum recursion depth check
+    if (ply >= MAX_PLY - 1)
+        return evaluatePosition(board);
     
     // Stand-pat score (evaluate the current position without making any moves)
     int standPat = evaluatePosition(board);
@@ -537,74 +540,89 @@ int Engine::quiescenceSearch(Board& board, int alpha, int beta, uint64_t hashKey
     if (standPat > alpha)
         alpha = standPat;
     
-    // Maximum recursion depth for quiescence search
-    if (ply >= MAX_PLY - 1)
-        return standPat;
+    // Generate capturing moves
+    std::vector<Move> capturingMoves;
     
-    // Flag to track if we're in check
-    bool inCheck = board.isInCheck();
-
-    // Stage 1: If we're in check, we need to generate all legal moves
-    if (inCheck) {
-        auto legalMoves = board.generateLegalMoves();
-        
-        // Score and sort the moves
-        std::vector<std::pair<int, Move>> scoredMoves;
-        for (const auto& move : legalMoves) {
-            int moveScore = 1000; // Base score for check evasions
-            
-            auto capturedPiece = board.getPieceAt(move.to);
-            if (capturedPiece) {
-                auto movingPiece = board.getPieceAt(move.from);
-                moveScore = 10000 + getMVVLVAScore(movingPiece->getType(), capturedPiece->getType());
-            }
-            
-            scoredMoves.push_back(std::make_pair(moveScore, move));
+    // Get all legal moves
+    auto legalMoves = board.generateLegalMoves();
+    
+    // Filter only capturing moves
+    for (const auto& move : legalMoves) {
+        auto capturedPiece = board.getPieceAt(move.to);
+        if (capturedPiece || 
+            (board.getPieceAt(move.from)->getType() == PieceType::PAWN && 
+             move.to == board.getEnPassantTarget())) {
+            capturingMoves.push_back(move);
         }
-        
-        // Sort moves by score (descending)
-        std::sort(scoredMoves.begin(), scoredMoves.end(),
-                [](const std::pair<int, Move>& a, const std::pair<int, Move>& b) {
-                    return a.first > b.first;
-                });
-        
-        // Search all legal moves when in check
-        for (const auto& scoredMove : scoredMoves) {
-            const Move& move = scoredMove.second;
-            
-            // Save board state for unmaking move
-            BoardState previousState;
-            
-            // Make the move
-            if (!board.makeMove(move, previousState))
-                continue;
-            
-            // Calculate new hash key
-            uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
-            
-            // Track the capture square if this move is a capture
-            Position newLastCaptureSquare = lastCaptureSquare;
-            if (board.getPieceAt(move.to) != nullptr) {
-                newLastCaptureSquare = move.to;
-            }
-            
-            // Recursively search
-            int score = -quiescenceSearch(board, -beta, -alpha, newHashKey, ply + 1, qDepth + 1, newLastCaptureSquare);
-            
-            // Unmake the move
-            board.unmakeMove(move, previousState);
-            
-            // Beta cutoff
-            if (score >= beta)
-                return beta;
-            
-            // Update alpha
-            if (score > alpha)
-                alpha = score;
-        }
-        
-        return alpha;
     }
+    
+    // Score and sort the moves
+    std::vector<std::pair<int, Move>> scoredMoves;
+    for (const auto& move : capturingMoves) {
+        int moveScore = 0;
+        
+        auto movingPiece = board.getPieceAt(move.from);
+        auto capturedPiece = board.getPieceAt(move.to);
+        
+        if (capturedPiece) {
+            // MVV-LVA scoring for captures
+            moveScore = getMVVLVAScore(movingPiece->getType(), capturedPiece->getType());
+            
+            // Static Exchange Evaluation (SEE)
+            int seeScore = seeCapture(board, move);
+            if (seeScore < 0) {
+                // Skip bad captures at deeper ply depths
+                if (ply > 2 && !board.isInCheck()) continue;
+                
+                // Penalize bad captures, but still consider them
+                moveScore += seeScore;
+            }
+        } else if (board.getPieceAt(move.from)->getType() == PieceType::PAWN && 
+                  move.to == board.getEnPassantTarget()) {
+            // En passant capture
+            moveScore = getMVVLVAScore(movingPiece->getType(), PieceType::PAWN);
+        }
+        
+        scoredMoves.push_back(std::make_pair(moveScore, move));
+    }
+    
+    // Sort moves by score (descending)
+    std::sort(scoredMoves.begin(), scoredMoves.end(),
+              [](const std::pair<int, Move>& a, const std::pair<int, Move>& b) {
+                  return a.first > b.first;
+              });
+    
+    // Make each move and recursively search
+    for (const auto& scoredMove : scoredMoves) {
+        const Move& move = scoredMove.second;
+        
+        // Save board state for unmaking move
+        BoardState previousState;
+        
+        // Make the move
+        if (!board.makeMove(move, previousState))
+            continue;
+        
+        // Calculate new hash key
+        uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
+        
+        // Recursively search
+        int score = -quiescenceSearch(board, -beta, -alpha, newHashKey, ply + 1);
+        
+        // Unmake the move
+        board.unmakeMove(move, previousState);
+        
+        // Beta cutoff
+        if (score >= beta)
+            return beta;
+        
+        // Update alpha
+        if (score > alpha)
+            alpha = score;
+    }
+    
+    return alpha;
+}
     
     // If not in check, proceed with selective quiescence search using staged move generation
     
