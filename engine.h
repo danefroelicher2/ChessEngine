@@ -135,6 +135,40 @@ private:
     private:
     int getDepthAdjustment(const Move& move, const Board& board, bool isPVMove, int moveIndex) const;
 
+// In engine.h, add these member variables
+private:
+    // PV following enhancements
+    std::vector<std::vector<Move>> pvTable; // Stores PV for each depth
+    
+// Initialize in the constructor
+Engine::Engine(...) {
+    
+    // Initialize PV table
+    pvTable.resize(MAX_PLY);
+    for (int i = 0; i < MAX_PLY; i++) {
+        pvTable[i].clear();
+    }
+}
+
+// Add a function to store the PV at a specific depth
+void Engine::storePV(int depth, const std::vector<Move>& pv) {
+    pvTable[depth] = pv;
+}
+
+// Modify isPVMove to use the PV table
+bool Engine::isPVMove(const Move& move, int depth, int ply) const {
+    if (depth < 0 || depth >= MAX_PLY || ply >= pvTable[depth].size()) {
+        return false;
+    }
+    
+    const Move& pvMove = pvTable[depth][ply];
+    return (pvMove.from.row == move.from.row && 
+            pvMove.from.col == move.from.col && 
+            pvMove.to.row == move.to.row && 
+            pvMove.to.col == move.to.col);
+}
+
+
 private:
     // Iterative deepening search
     Move Engine::iterativeDeepeningSearch(Board& board, int maxDepth, uint64_t hashKey) {

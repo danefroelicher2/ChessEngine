@@ -108,24 +108,39 @@ Move Engine::iterativeDeepeningSearch(Board& board, int maxDepth, uint64_t hashK
     Move bestMove(Position(), Position());
     int bestScore = 0;
     
-    // Iterative deepening loop
+     // Iterative deepening loop
     for (int depth = 1; depth <= maxDepth; depth++) {
         std::vector<Move> pv;
+        
+        // Record nodes before this iteration
+        nodesPrevious = nodesSearched;
+        
+        // Store previous iteration's results
+        previousBestMove = bestMove;
+        previousScore = bestScore;
+        
+        // Get previous iteration's PV if available
+        std::vector<Move> previousPV;
+        if (depth > 1) {
+            previousPV = pvTable[depth - 1];
+        }
         
         // Color is set to true for maximizing player (WHITE), false for minimizing player (BLACK)
         bool maximizingPlayer = board.getSideToMove() == Color::WHITE;
         
-        // Search with a full window
-        int score = pvSearch(board, depth, -100000, 100000, maximizingPlayer, pv, hashKey, 0, Move(Position(), Position()));
+       // Search with appropriate window
+        int score = pvSearch(board, depth, alpha, beta, maximizingPlayer, pv, hashKey, 0, Move(Position(), Position()));
         
         // Store the best move and score if we got valid results
         if (!pv.empty()) {
             bestMove = pv[0];
-            principalVariation = pv;
             bestScore = score;
+            principalVariation = pv;
             
-            // Debug output - show the PV line
-            std::cout << "PV: " << getPVString() << std::endl;
+            // Store this iteration's PV for future use
+            storePV(depth, pv);
+            
+            std::cout << "PV at depth " << depth << ": " << getPVString(pv) << std::endl;
         }
         
         // Log the progress
