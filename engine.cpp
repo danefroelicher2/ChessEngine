@@ -521,6 +521,109 @@ int Engine::getMoveScore(const Move& move, const Board& board, const Move& ttMov
     return getHistoryScore(move, sideToMove);
 }
 
+// Add this function to your Engine class in engine.cpp
+// Quiescence search - continues capturing sequences beyond regular search
+int Engine::quiescenceSearch(Board& board, int alpha, int beta, uint64_t hashKey, int ply) {
+    // Track nodes searched
+    nodesSearched++;
+    
+    // Stand-pat score (evaluate the current position without making any moves)
+    int standPat = evaluatePosition(board);
+    
+    // Beta cutoff
+    if (standPat >= beta)
+        return beta;
+    
+    // Update alpha if stand-pat score is better
+    if (standPat > alpha)
+        alpha = standPat;
+    
+    // Maximum recursion depth for quiescence search
+    if (ply >= MAX_PLY - 1)
+        return standPat;
+    
+    // Generate only capture moves
+    std::vector<Move> captureMoves;
+    auto legalMoves = board.generateLegalMoves();
+    
+    for (const auto& move : legalMoves) {
+        // Only consider captures
+        if (board.getPieceAt(move.to) != nullptr || 
+            (board.getPieceAt(move.from)->getType() == PieceType::PAWN && move.to == board.getEnPassantTarget())) {
+            captureMoves.push_back(move);
+        }
+    }
+    
+    if (captureMoves.empty())
+        return standPat;
+    
+    // Score and sort the capture moves
+    std::vector<std::pair<int, Move>> scoredMoves;
+    for (const auto& move : captureMoves) {
+        auto movingPiece = board.getPieceAt(move.from);
+        auto capturedPiece = board.getPieceAt(move.to);
+        
+        // Score the move
+        int moveScore;
+        if (capturedPiece) {
+            // MVV-LVA scoring
+            moveScore = getMVVLVAScore(movingPiece->getType(), capturedPiece->getType());
+        } else {
+            // En passant capture
+            moveScore = getMVVLVAScore(movingPiece->getType(), PieceType::PAWN);
+        }
+        
+        // Static Exchange Evaluation (SEE)
+        int seeScore = seeCapture(board, move);
+        if (seeScore < 0) {
+            // Skip bad captures, but only at deeper ply depths to avoid missing sacrifices
+            if (ply > 2) continue;
+            
+            // Penalize bad captures, but still consider them
+            moveScore += seeScore;
+        }
+        
+        scoredMoves.push_back(std::make_pair(moveScore, move));
+    }
+    
+    // Sort moves by score (descending)
+    std::sort(scoredMoves.begin(), scoredMoves.end(),
+              [](const std::pair<int, Move>& a, const std::pair<int, Move>& b) {
+                  return a.first > b.first;
+              });
+    
+    // Make each move and recursively search
+    for (const auto& scoredMove : scoredMoves) {
+        const Move& move = scoredMove.second;
+        
+        // Save board state for unmaking move
+        BoardState previousState;
+        
+        // Make the move
+        if (!board.makeMove(move, previousState))
+            continue;
+        
+        // Calculate new hash key
+        uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
+        
+        // Recursively search
+        int score = -quiescenceSearch(board, -beta, -alpha, newHashKey, ply + 1);
+        
+        // Unmake the move
+        board.unmakeMove(move, previousState);
+        
+        // Beta cutoff
+        if (score >= beta)
+            return beta;
+        
+        // Update alpha
+        if (score > alpha)
+            alpha = score;
+    }
+    
+    return alpha;
+}
+
 // Principal Variation Search (PVS) - a more efficient version of alpha-beta for PV nodes
 int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizingPlayer, 
                     std::vector<Move>& pv, uint64_t hashKey, int ply, Move lastMove) {
