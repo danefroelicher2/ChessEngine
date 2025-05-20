@@ -94,6 +94,7 @@ public:
     
     void setPosition(const Position& pos) { position = pos; }
     void setMoved() { hasMoved = true; }
+void setHasMoved(bool moved) { hasMoved = moved; }
     
     virtual std::vector<Move> getLegalMoves(const class Board& board) const = 0;
     
@@ -103,5 +104,7 @@ public:
     // Return char representation for console display
     char toChar() const;
 };
+
+
 
 #endif // PIECE_H
