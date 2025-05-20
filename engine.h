@@ -125,7 +125,7 @@ private:
                  std::vector<Move> &pv, uint64_t hashKey, int ply, Move lastMove);
 
     // Quiescence search for handling captures at leaf nodes
-int quiescenceSearch(Board& board, int alpha, int beta, uint64_t hashKey, int ply, int qDepth);
+int quiescenceSearch(Board& board, int alpha, int beta, uint64_t hashKey, int ply, int qDepth, Position lastCaptureSquare = Position());
 
     // Static Exchange Evaluation (SEE)
     int seeCapture(const Board &board, const Move &move) const;
