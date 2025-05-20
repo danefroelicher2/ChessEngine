@@ -8,6 +8,7 @@
 
 // Maximum search depth - adjust if needed
 #define MAX_PLY 64
+#define MAX_QSEARCH_DEPTH 8
 
 class Engine
 {
@@ -124,7 +125,7 @@ private:
                  std::vector<Move> &pv, uint64_t hashKey, int ply, Move lastMove);
 
     // Quiescence search for handling captures at leaf nodes
-    int quiescenceSearch(Board &board, int alpha, int beta, uint64_t hashKey, int ply);
+int quiescenceSearch(Board& board, int alpha, int beta, uint64_t hashKey, int ply, int qDepth);
 
     // Static Exchange Evaluation (SEE)
     int seeCapture(const Board &board, const Move &move) const;
