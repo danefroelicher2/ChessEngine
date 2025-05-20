@@ -758,9 +758,13 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
         
         for (size_t i = 0; i < scoredMoves.size(); i++) {
             const Move& move = scoredMoves[i].second;
+
+            // Determine if this is a PV move (part of the principal variation)
+            bool isPVMove = isPVMove(move, principalVariation, ply);
             
-            // Additional move-specific extensions
+            // Calculate depth adjustment (reduction or extension)
             int moveExtension = extension;
+            
             
             // 3. Recapture Extension - extend when recapturing at the same square
             if (lastMove.to.isValid() && move.to == lastMove.to) {
@@ -775,6 +779,19 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
                     moveExtension = std::max(moveExtension, 1);
                 }
             }
+
+            // Progressive deepening - apply depth adjustment for non-first moves
+            int depthAdjustment = 0;
+            if (!foundPV && i > 0) {
+                // Young Brothers Wait - reduce depth for siblings of the first move
+                depthAdjustment = getDepthAdjustment(move, board, isPVMove, i);
+            }
+            
+            // Final depth after adjustments
+            int newDepth = depth - 1 + moveExtension + depthAdjustment;
+            
+            // Ensure we don't go below quiescence search
+            newDepth = std::max(0, newDepth);
             
             // Save board state for unmaking move
             BoardState previousState;
