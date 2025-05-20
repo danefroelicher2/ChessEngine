@@ -745,6 +745,10 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
         return quiescenceSearch(board, alpha, beta, hashKey, ply, 0);
     }
     
+   if (depth == 0) {
+        return quiescenceSearch(board, alpha, beta, hashKey, ply, 0, Position());
+    }
+    
     // If the game is over, return the evaluation
     if (board.isCheckmate() || board.isStalemate()) {
         return evaluatePosition(board);
@@ -976,6 +980,11 @@ int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximiz
     }
     // If we've reached the maximum depth, use quiescence search
      if (depth == 0) {
+        return quiescenceSearch(board, alpha, beta, hashKey, ply);
+    }
+    
+      // If we've reached the maximum depth, use quiescence search
+    if (depth == 0) {
         return quiescenceSearch(board, alpha, beta, hashKey, ply);
     }
     
