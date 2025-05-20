@@ -643,7 +643,12 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
     }
     
     // If we've reached the maximum depth or the game is over, evaluate the position
-    if (depth == 0 || board.isCheckmate() || board.isStalemate()) {
+     if (depth == 0) {
+        return quiescenceSearch(board, alpha, beta, hashKey, ply);
+    }
+    
+    // If the game is over, return the evaluation
+    if (board.isCheckmate() || board.isStalemate()) {
         return evaluatePosition(board);
     }
     
@@ -867,8 +872,13 @@ int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximiz
         return score; // Return cached result if available (but don't use TT at root)
     }
     
-    // If we've reached the maximum depth or the game is over, evaluate the position
-    if (depth == 0 || board.isCheckmate() || board.isStalemate()) {
+    // If we've reached the maximum depth, use quiescence search
+    if (depth == 0) {
+        return quiescenceSearch(board, alpha, beta, hashKey, ply);
+    }
+    
+    // If the game is over, return the evaluation
+    if (board.isCheckmate() || board.isStalemate()) {
         return evaluatePosition(board);
     }
     
