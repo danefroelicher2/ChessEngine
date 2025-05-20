@@ -118,11 +118,14 @@ Move Engine::iterativeDeepeningSearch(Board& board, int maxDepth, uint64_t hashK
         // Search with a full window
         int score = pvSearch(board, depth, -100000, 100000, maximizingPlayer, pv, hashKey, 0, Move(Position(), Position()));
         
-        // Store the best move and score
+        // Store the best move and score if we got valid results
         if (!pv.empty()) {
             bestMove = pv[0];
             principalVariation = pv;
             bestScore = score;
+            
+            // Debug output - show the PV line
+            std::cout << "PV: " << getPVString() << std::endl;
         }
         
         // Log the progress
@@ -134,7 +137,7 @@ Move Engine::iterativeDeepeningSearch(Board& board, int maxDepth, uint64_t hashK
                   << ", Nodes: " << nodesSearched 
                   << ", Time: " << duration.count() << "ms" 
                   << ", NPS: " << static_cast<long>(nodesSearched * 1000.0 / duration.count())
-                  << ", PV: " << getPVString() << std::endl;
+                  << std::endl;
     }
     
     return bestMove;
