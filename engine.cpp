@@ -83,6 +83,71 @@ const int Engine::kingEndGameTable[64] = {
     -50,-30,-30,-30,-30,-30,-30,-50
 };
 
+// Clear the killer moves
+void Engine::clearKillerMoves()
+{
+    for (int ply = 0; ply < MAX_PLY; ply++)
+    {
+        for (int i = 0; i < 2; i++)
+        {
+            killerMoves[ply][i] = Move(Position(), Position());
+        }
+    }
+}
+
+// Clear the counter moves
+void Engine::clearCounterMoves()
+{
+    for (int pieceType = 0; pieceType < 6; pieceType++)
+    {
+        for (int color = 0; color < 2; color++)
+        {
+            for (int from = 0; from < 64; from++)
+            {
+                for (int to = 0; to < 64; to++)
+                {
+                    counterMoves[pieceType][color][from][to] = Move(Position(), Position());
+                }
+            }
+        }
+    }
+}
+
+// Clear the history table
+void Engine::clearHistoryTable()
+{
+    for (int color = 0; color < 2; color++)
+    {
+        for (int from = 0; from < 64; from++)
+        {
+            for (int to = 0; to < 64; to++)
+            {
+                historyTable[color][from][to] = 0;
+            }
+        }
+    }
+}
+
+// Store PV at a specific depth
+void Engine::storePV(int depth, const std::vector<Move>& pv) {
+    if (depth >= 0 && depth < MAX_PLY) {
+        pvTable[depth] = pv;
+    }
+}
+
+// Check if a move is in the PV at a specific depth and ply
+bool Engine::isPVMove(const Move& move, int depth, int ply) const {
+    if (depth < 0 || depth >= MAX_PLY || ply >= static_cast<int>(pvTable[depth].size())) {
+        return false;
+    }
+    
+    const Move& pvMove = pvTable[depth][ply];
+    return (pvMove.from.row == move.from.row && 
+            pvMove.from.col == move.from.col && 
+            pvMove.to.row == move.to.row && 
+            pvMove.to.col == move.to.col);
+}
+
 // Get the best move for the current position
 Move Engine::getBestMove() {
     // Reset search statistics
@@ -99,6 +164,10 @@ Move Engine::getBestMove() {
     Zobrist::initialize();
     uint64_t hashKey = Zobrist::generateHashKey(board);
     
+    // Use iterative deepening to find the best move
+    return iterativeDeepeningSearch(board, maxDepth, hashKey);
+}
+
 // Iterative deepening search
 Move Engine::iterativeDeepeningSearch(Board& board, int maxDepth, uint64_t hashKey) {
     principalVariation.clear();
@@ -109,7 +178,6 @@ Move Engine::iterativeDeepeningSearch(Board& board, int maxDepth, uint64_t hashK
     
     // For time management
     long nodesPrevious = 0;
-    long nodesTotal = 0;
     
     // For aspiration windows
     int windowSize = 50;
@@ -120,7 +188,6 @@ Move Engine::iterativeDeepeningSearch(Board& board, int maxDepth, uint64_t hashK
     bool isUnstable = false;
     
     // Initialize PV table for each depth
-    pvTable.resize(MAX_PLY);
     for (int i = 0; i < MAX_PLY; i++) {
         pvTable[i].clear();
     }
@@ -189,7 +256,7 @@ Move Engine::iterativeDeepeningSearch(Board& board, int maxDepth, uint64_t hashK
             principalVariation = pv;
             
             // Store this iteration's PV
-            pvTable[depth] = pv;
+            storePV(depth, pv);
         }
         
         // Instability detection
@@ -227,14 +294,17 @@ Move Engine::iterativeDeepeningSearch(Board& board, int maxDepth, uint64_t hashK
         
         // Nodes for this iteration
         long nodesThisIteration = nodesSearched - nodesPrevious;
-        nodesTotal = nodesSearched;
         
         std::cout << "Depth: " << depth 
                   << ", Score: " << score 
                   << ", Nodes: " << nodesSearched 
-                  << ", Time: " << duration.count() << "ms" 
-                  << ", NPS: " << static_cast<long>(nodesSearched * 1000.0 / duration.count())
-                  << ", PV: " << getPVString() << std::endl;
+                  << ", Time: " << duration.count() << "ms";
+        
+        if (duration.count() > 0) {
+            std::cout << ", NPS: " << static_cast<long>(nodesSearched * 1000.0 / duration.count());
+        }
+        
+        std::cout << ", PV: " << getPVString() << std::endl;
         
         // Time management check
         if (timeManaged && timeAllocated > 0) {
@@ -250,15 +320,17 @@ Move Engine::iterativeDeepeningSearch(Board& board, int maxDepth, uint64_t hashK
             }
             
             // Estimate time for next iteration: typically 4-5x more nodes required
-            long estimatedNodesNext = nodesThisIteration * 4.5;
-            double estimatedTimeNext = (double)timeUsed * estimatedNodesNext / nodesThisIteration;
-            
-            // If we estimate we'll exceed our adjusted time allocation for the next iteration, stop now
-            if (timeUsed + estimatedTimeNext + timeBuffer > adjustedTimeAllocation) {
-                std::cout << "Stopping search due to time constraints. Time used: " 
-                          << timeUsed << "ms, Estimated for next: " 
-                          << estimatedTimeNext << "ms" << std::endl;
-                break;
+            if (nodesThisIteration > 0) {
+                long estimatedNodesNext = nodesThisIteration * 4.5;
+                double estimatedTimeNext = (double)timeUsed * estimatedNodesNext / nodesThisIteration;
+                
+                // If we estimate we'll exceed our adjusted time allocation for the next iteration, stop now
+                if (timeUsed + estimatedTimeNext + timeBuffer > adjustedTimeAllocation) {
+                    std::cout << "Stopping search due to time constraints. Time used: " 
+                              << timeUsed << "ms, Estimated for next: " 
+                              << estimatedTimeNext << "ms" << std::endl;
+                    break;
+                }
             }
         }
     }
@@ -275,6 +347,44 @@ std::string Engine::getPVString() const {
     }
     
     return ss.str();
+}
+
+// Get depth adjustment for move ordering and late move reductions
+int Engine::getDepthAdjustment(const Move& move, const Board& board, bool isPVMove, int moveIndex) const {
+    // For PV moves, no reduction
+    if (isPVMove) {
+        return 0;
+    }
+    
+    // Losing captures shouldn't get full depth
+    auto capturedPiece = board.getPieceAt(move.to);
+    if (capturedPiece && seeCapture(board, move) < 0) {
+        return -1;
+    }
+    
+    // First few moves should get full depth
+    if (moveIndex < 3) {
+        return 0;
+    }
+    
+    // Late moves get progressively less depth
+    int reduction = 0;
+    
+    // Base reduction on move index
+    if (moveIndex >= 3) {
+        reduction = 1;
+    }
+    if (moveIndex >= 6) {
+        reduction = 2;
+    }
+    if (moveIndex >= 12) {
+        reduction = 3;
+    }
+    
+    // Don't reduce too much at low depths
+    reduction = std::min(reduction, 2);
+    
+    return -reduction;
 }
 
 // Static Exchange Evaluation (SEE)
@@ -334,43 +444,6 @@ int Engine::see(const Board& board, const Position& square, Color side, int capt
     int score = captureValue - see(board, square, (side == Color::WHITE) ? Color::BLACK : Color::WHITE, leastValuableAttackerValue);
     
     return std::max(0, score); // Don't make a capture if it's worse than doing nothing
-}
-
-int Engine::getDepthAdjustment(const Move& move, const Board& board, bool isPVMove, int moveIndex) const {
-    // For PV moves, no reduction
-    if (isPVMove) {
-        return 0;
-    }
-    
-    // Losing captures shouldn't get full depth
-    auto capturedPiece = board.getPieceAt(move.to);
-    if (capturedPiece && seeCapture(board, move) < 0) {
-        return -1;
-    }
-    
-    // First few moves should get full depth
-    if (moveIndex < 3) {
-        return 0;
-    }
-    
-    // Late moves get progressively less depth
-    int reduction = 0;
-    
-    // Base reduction on move index
-    if (moveIndex >= 3) {
-        reduction = 1;
-    }
-    if (moveIndex >= 6) {
-        reduction = 2;
-    }
-    if (moveIndex >= 12) {
-        reduction = 3;
-    }
-    
-    // Don't reduce too much at low depths
-    reduction = std::min(reduction, 2);
-    
-    return -reduction;
 }
 
 // Get the approximate value of a piece for SEE
@@ -497,7 +570,7 @@ int Engine::getHistoryScore(const Move& move, Color color) const {
     return historyTable[colorIdx][fromIdx][toIdx];
 }
 
-// Check if a move is part of the principal variation
+// Check if a move is part of the principal variation (deprecated version for compatibility)
 bool Engine::isPVMove(const Move& move, const std::vector<Move>& pv, int ply) const {
     if (pv.size() <= static_cast<size_t>(ply)) return false;
     
@@ -519,8 +592,8 @@ int Engine::getMoveScore(const Move& move, const Board& board, const Move& ttMov
         return 10000000;
     }
     
-    // 2. Principal variation move
-   for (int d = depth; d >= 1; d--) {
+    // 2. Principal variation move - check from multiple depths
+    for (int d = maxDepth; d >= 1; d--) {
         if (isPVMove(move, d, ply)) {
             return 9000000 + d * 1000; // PV moves from deeper searches get higher priority
         }
@@ -570,6 +643,7 @@ int Engine::getMoveScore(const Move& move, const Board& board, const Move& ttMov
     return getHistoryScore(move, sideToMove);
 }
 
+// Quiescence search for handling captures at leaf nodes
 int Engine::quiescenceSearch(Board& board, int alpha, int beta, uint64_t hashKey, int ply) {
     // Track nodes searched
     nodesSearched++;
@@ -589,39 +663,77 @@ int Engine::quiescenceSearch(Board& board, int alpha, int beta, uint64_t hashKey
     if (standPat > alpha)
         alpha = standPat;
     
-    // Generate capturing moves
-    std::vector<Move> capturingMoves;
+    // Generate capturing moves and checks
+    std::vector<Move> qMoves;
+    bool inCheck = board.isInCheck();
     
     // Get all legal moves
     auto legalMoves = board.generateLegalMoves();
     
-    // Filter only capturing moves
+    // Filter only capturing moves and checks if in check
     for (const auto& move : legalMoves) {
         auto capturedPiece = board.getPieceAt(move.to);
-        if (capturedPiece || 
-            (board.getPieceAt(move.from)->getType() == PieceType::PAWN && 
-             move.to == board.getEnPassantTarget())) {
-            capturingMoves.push_back(move);
+        bool isCapture = capturedPiece || 
+                         (board.getPieceAt(move.from)->getType() == PieceType::PAWN && 
+                          move.to == board.getEnPassantTarget());
+        
+        // Include all moves if in check, otherwise only include captures
+        if (inCheck || isCapture) {
+            qMoves.push_back(move);
         }
     }
     
+    if (qMoves.empty())
+        return standPat;
+    
     // Score and sort the moves
     std::vector<std::pair<int, Move>> scoredMoves;
-    for (const auto& move : capturingMoves) {
+    for (const auto& move : qMoves) {
+        // Score the move
         int moveScore = 0;
         
         auto movingPiece = board.getPieceAt(move.from);
         auto capturedPiece = board.getPieceAt(move.to);
         
+        bool isCapture = capturedPiece != nullptr || 
+                         (movingPiece->getType() == PieceType::PAWN && 
+                          move.to == board.getEnPassantTarget());
+        
+        // Delta pruning - skip captures that can't improve alpha
+        if (isCapture && !inCheck && ply > 0) {
+            // Get the maximum possible material gain from this capture
+            int captureValue = 0;
+            if (capturedPiece) {
+                captureValue = getPieceValue(capturedPiece->getType());
+            } else if (move.to == board.getEnPassantTarget()) {
+                captureValue = PAWN_VALUE;
+            }
+            
+            // Add potential promotion bonus
+            int promotionBonus = 0;
+            if (movingPiece->getType() == PieceType::PAWN && 
+                (move.to.row == 0 || move.to.row == 7)) {
+                promotionBonus = QUEEN_VALUE - PAWN_VALUE;
+            }
+            
+            // Delta margin - a buffer to account for positional gains
+            const int DELTA_MARGIN = 200;
+            
+            // Skip if even the maximum possible gain can't improve alpha
+            if (standPat + captureValue + promotionBonus + DELTA_MARGIN <= alpha) {
+                continue;  // Skip this capture - it can't improve alpha
+            }
+        }
+        
         if (capturedPiece) {
             // MVV-LVA scoring for captures
-            moveScore = getMVVLVAScore(movingPiece->getType(), capturedPiece->getType());
+            moveScore = 10000000 + getMVVLVAScore(movingPiece->getType(), capturedPiece->getType());
             
             // Static Exchange Evaluation (SEE)
             int seeScore = seeCapture(board, move);
             if (seeScore < 0) {
                 // Skip bad captures at deeper ply depths
-                if (ply > 2 && !board.isInCheck()) continue;
+                if (ply > 2 && !inCheck) continue;
                 
                 // Penalize bad captures, but still consider them
                 moveScore += seeScore;
@@ -629,7 +741,11 @@ int Engine::quiescenceSearch(Board& board, int alpha, int beta, uint64_t hashKey
         } else if (board.getPieceAt(move.from)->getType() == PieceType::PAWN && 
                   move.to == board.getEnPassantTarget()) {
             // En passant capture
-            moveScore = getMVVLVAScore(movingPiece->getType(), PieceType::PAWN);
+            moveScore = 10000000 + getMVVLVAScore(movingPiece->getType(), PieceType::PAWN);
+        } else {
+            // Non-capture move (likely a check)
+            // Score lower than captures but still consider
+            moveScore = 1000000;
         }
         
         scoredMoves.push_back(std::make_pair(moveScore, move));
@@ -672,118 +788,8 @@ int Engine::quiescenceSearch(Board& board, int alpha, int beta, uint64_t hashKey
     
     return alpha;
 }
-    
-    // If not in check, proceed with selective quiescence search using staged move generation
-    
-    if (qMoves.empty())
-        return standPat;
-    
-    // Score and sort the moves
-    std::vector<std::pair<int, Move>> scoredMoves;
-    for (const auto& move : qMoves) {
-        // Score the move
-        int moveScore = 0;
-        
-        auto movingPiece = board.getPieceAt(move.from);
-        auto capturedPiece = board.getPieceAt(move.to);
-        
-        bool isCapture = capturedPiece != nullptr || 
-                         (movingPiece->getType() == PieceType::PAWN && 
-                          move.to == board.getEnPassantTarget());
-        
-        // Delta pruning - skip captures that can't improve alpha
-        if (isCapture && !inCheck && qDepth > 0) {
-            // Get the maximum possible material gain from this capture
-            int captureValue = 0;
-            if (capturedPiece) {
-                captureValue = getPieceValue(capturedPiece->getType());
-            } else if (move.to == board.getEnPassantTarget()) {
-                captureValue = PAWN_VALUE;
-            }
-            
-            // Add potential promotion bonus
-            int promotionBonus = 0;
-            if (movingPiece->getType() == PieceType::PAWN && 
-                (move.to.row == 0 || move.to.row == 7)) {
-                promotionBonus = QUEEN_VALUE - PAWN_VALUE;
-            }
-            
-            // Delta margin - a buffer to account for positional gains
-            const int DELTA_MARGIN = 200;
-            
-            // Skip if even the maximum possible gain can't improve alpha
-            if (standPat + captureValue + promotionBonus + DELTA_MARGIN <= alpha) {
-                continue;  // Skip this capture - it can't improve alpha
-            }
-        }
-        
-        if (capturedPiece) {
-            // MVV-LVA scoring for captures
-            moveScore = 10000000 + getMVVLVAScore(movingPiece->getType(), capturedPiece->getType());
-            
-            // Static Exchange Evaluation (SEE)
-            int seeScore = seeCapture(board, move);
-            if (seeScore < 0) {
-                // Skip bad captures at deeper ply depths
-                if (qDepth > 2 && !inCheck) continue;
-                
-                // Penalize bad captures, but still consider them
-                moveScore += seeScore;
-            }
-        } else if (board.getPieceAt(move.from)->getType() == PieceType::PAWN && 
-                  move.to == board.getEnPassantTarget()) {
-            // En passant capture
-            moveScore = 10000000 + getMVVLVAScore(movingPiece->getType(), PieceType::PAWN);
-        } else {
-            // Non-capture move (likely a check)
-            // Score lower than captures but still consider
-            moveScore = 1000000;
-        }
-        
-        scoredMoves.push_back(std::make_pair(moveScore, move));
-    }
-    
-    // Sort moves by score (descending)
-    std::sort(scoredMoves.begin(), scoredMoves.end(),
-              [](const std::pair<int, Move>& a, const std::pair<int, Move>& b) {
-                  return a.first > b.first;
-              });
-    
-    // Make each move and recursively search
-    for (const auto& scoredMove : scoredMoves) {
-        const Move& move = scoredMove.second;
-        
-        // Save board state for unmaking move
-        BoardState previousState;
-        
-        // Make the move
-        if (!board.makeMove(move, previousState))
-            continue;
-        
-        // Calculate new hash key
-        uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
-        
-        // Apply adaptive depth - reduce depth for specific move types
-        int newQDepth = qDepth + 1;
-        
-        // Recursively search
-        int score = -quiescenceSearch(board, -beta, -alpha, newHashKey, ply + 1, newQDepth);
-        
-        // Unmake the move
-        board.unmakeMove(move, previousState);
-        
-        // Beta cutoff
-        if (score >= beta)
-            return beta;
-        
-        // Update alpha
-        if (score > alpha)
-            alpha = score;
-    }
-    
-    return alpha;
-}
 
+// Principal Variation Search (PVS) - optimization of alpha-beta
 int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizingPlayer, 
                      std::vector<Move>& pv, uint64_t hashKey, int ply, Move lastMove) {
     // Track nodes searched
@@ -818,8 +824,6 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
     if (board.isInCheck()) {
         extension = 1;
     }
-    
-    // Other extensions will be applied after move generation
     
     // If the game is over, return the evaluation
     if (board.isCheckmate() || board.isStalemate()) {
@@ -885,11 +889,16 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
             const Move& move = scoredMoves[i].second;
 
             // Determine if this is a PV move (part of the principal variation)
-            bool isPVMove = isPVMove(move, principalVariation, ply);
+            bool isPVMoveCheck = false;
+            for (int d = 1; d <= maxDepth; d++) {
+                if (isPVMove(move, d, ply)) {
+                    isPVMoveCheck = true;
+                    break;
+                }
+            }
             
             // Calculate depth adjustment (reduction or extension)
             int moveExtension = extension;
-            
             
             // 3. Recapture Extension - extend when recapturing at the same square
             if (lastMove.to.isValid() && move.to == lastMove.to) {
@@ -909,7 +918,7 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
             int depthAdjustment = 0;
             if (!foundPV && i > 0) {
                 // Young Brothers Wait - reduce depth for siblings of the first move
-                depthAdjustment = getDepthAdjustment(move, board, isPVMove, i);
+                depthAdjustment = getDepthAdjustment(move, board, isPVMoveCheck, i);
             }
             
             // Final depth after adjustments
@@ -935,16 +944,16 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
             // Full window search for first move, null window for others
             if (foundPV) {
                 // Try a null window search first
-                eval = -pvSearch(board, depth - 1 + moveExtension, -alpha - 1, -alpha, false, childPV, newHashKey, ply + 1, move);
+                eval = -pvSearch(board, newDepth, -alpha - 1, -alpha, false, childPV, newHashKey, ply + 1, move);
                 
                 // If we might fail high, do a full window search
                 if (eval > alpha && eval < beta) {
                     childPV.clear();
-                    eval = -pvSearch(board, depth - 1 + moveExtension, -beta, -alpha, false, childPV, newHashKey, ply + 1, move);
+                    eval = -pvSearch(board, newDepth, -beta, -alpha, false, childPV, newHashKey, ply + 1, move);
                 }
             } else {
                 // First move gets a full window search
-                eval = -pvSearch(board, depth - 1 + moveExtension, -beta, -alpha, false, childPV, newHashKey, ply + 1, move);
+                eval = -pvSearch(board, newDepth, -beta, -alpha, false, childPV, newHashKey, ply + 1, move);
             }
             
             // Unmake the move
@@ -1033,10 +1042,10 @@ int Engine::pvSearch(Board& board, int depth, int alpha, int beta, bool maximizi
             // Full window search for first move, null window for others
             if (foundPV) {
                 // Try a null window search first
-                eval = -pvSearch(board, depth - 1 + moveExtension, -alpha - 1, -alpha, true, childPV, newHashKey, ply + 1, move);
+                eval = -pvSearch(board, depth - 1 + moveExtension, -beta + 1, -beta, true, childPV, newHashKey, ply + 1, move);
                 
-                // If we might fail high, do a full window search
-                if (eval > alpha && eval < beta) {
+                // If we might fail low, do a full window search
+                if (eval < beta && eval > alpha) {
                     childPV.clear();
                     eval = -pvSearch(board, depth - 1 + moveExtension, -beta, -alpha, true, childPV, newHashKey, ply + 1, move);
                 }
@@ -1115,15 +1124,6 @@ int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximiz
     if (depth == 0) {
         return quiescenceSearch(board, alpha, beta, hashKey, ply);
     }
-    // If we've reached the maximum depth, use quiescence search
-     if (depth == 0) {
-        return quiescenceSearch(board, alpha, beta, hashKey, ply);
-    }
-    
-      // If we've reached the maximum depth, use quiescence search
-    if (depth == 0) {
-        return quiescenceSearch(board, alpha, beta, hashKey, ply);
-    }
     
     // If the game is over, return the evaluation
     if (board.isCheckmate() || board.isStalemate()) {
@@ -1182,18 +1182,22 @@ int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximiz
         for (const auto& scoredMove : scoredMoves) {
             const Move& move = scoredMove.second;
             
-            // Make a copy of the board
-            Board tempBoard = board;
+            // Save board state for unmaking move
+            BoardState previousState;
             
             // Make the move
-            tempBoard.makeMove(move);
+            if (!board.makeMove(move, previousState))
+                continue;
             
             // Calculate the new hash key after the move
             uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
             
             // Recursively evaluate the position
             childPV.clear();
-            int eval = alphaBeta(tempBoard, depth - 1, alpha, beta, false, childPV, newHashKey, ply + 1, move);
+            int eval = alphaBeta(board, depth - 1, alpha, beta, false, childPV, newHashKey, ply + 1, move);
+            
+            // Unmake the move
+            board.unmakeMove(move, previousState);
             
             // Update the best move if this move is better
             if (eval > maxEval) {
@@ -1241,18 +1245,22 @@ int Engine::alphaBeta(Board& board, int depth, int alpha, int beta, bool maximiz
         for (const auto& scoredMove : scoredMoves) {
             const Move& move = scoredMove.second;
             
-            // Make a copy of the board
-            Board tempBoard = board;
+            // Save board state for unmaking move
+            BoardState previousState;
             
             // Make the move
-            tempBoard.makeMove(move);
+            if (!board.makeMove(move, previousState))
+                continue;
             
             // Calculate the new hash key after the move
             uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
             
             // Recursively evaluate the position
             childPV.clear();
-            int eval = alphaBeta(tempBoard, depth - 1, alpha, beta, true, childPV, newHashKey, ply + 1, move);
+            int eval = alphaBeta(board, depth - 1, alpha, beta, true, childPV, newHashKey, ply + 1, move);
+            
+            // Unmake the move
+            board.unmakeMove(move, previousState);
             
             // Update the best move if this move is better
             if (eval < minEval) {
