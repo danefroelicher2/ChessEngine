@@ -303,21 +303,31 @@ bool UI::processCommand(const std::string &command)
     else if (command == "perft")
     {
         runPerftTests();
-        } else if (command.substr(0, 5) == "time ") {
-    try {
-        int timeMs = std::stoi(command.substr(5));
-        if (timeMs > 0) {
-            engine.setTimeForMove(timeMs);
-            std::cout << "Time per move set to " << timeMs << " milliseconds" << std::endl;
-        } else {
+    }
+    else if (command.substr(0, 5) == "time ")
+    {
+        try
+        {
+            int timeMs = std::stoi(command.substr(5));
+            if (timeMs > 0)
+            {
+                engine.setTimeForMove(timeMs);
+                std::cout << "Time per move set to " << timeMs << " milliseconds" << std::endl;
+            }
+            else
+            {
+                std::cout << "Invalid time!" << std::endl;
+            }
+        }
+        catch (const std::exception &e)
+        {
             std::cout << "Invalid time!" << std::endl;
         }
-    } catch (const std::exception& e) {
-        std::cout << "Invalid time!" << std::endl;
     }
-} else if (command == "time off") {
-    engine.setTimeManagement(false);
-    std::cout << "Time management disabled" << std::endl;
+    else if (command == "time off")
+    {
+        engine.setTimeManagement(false);
+        std::cout << "Time management disabled" << std::endl;
     }
     else if (command.substr(0, 6) == "perft ")
     {
@@ -380,6 +390,8 @@ void UI::displayHelp() const
     std::cout << "  cleartt        - Clear the transposition table" << std::endl;
     std::cout << "  quit/exit      - Exit the program" << std::endl;
     std::cout << "  test/tactics   - Run tactical test suite" << std::endl;
+    std::cout << "  time [ms]      - Set time per move in milliseconds" << std::endl;
+    std::cout << "  time off       - Disable time management" << std::endl;
     std::cout << std::endl;
     std::cout << "  perft          - Run perft test suite" << std::endl;
     std::cout << "  perft [n]      - Run perft to depth n on current position" << std::endl;
