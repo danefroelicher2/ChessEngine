@@ -219,6 +219,20 @@ bool UI::processCommand(const std::string& command) {
     } else if (command == "cleartt") {
         engine.clearTT();
         std::cout << "Transposition table cleared" << std::endl;
+        } else if (command == "perft") {
+    runPerftTests();
+} else if (command.substr(0, 6) == "perft ") {
+    try {
+        int depth = std::stoi(command.substr(6));
+        if (depth > 0 && depth <= 6) {
+            Board board = game.getBoard();
+            PerftTester::perftDivide(board, depth);
+        } else {
+            std::cout << "Perft depth must be between 1 and 6!" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "Invalid perft depth!" << std::endl;
+    }
     } else {
         // Try to interpret the command as a move
         if (isPlayerTurn()) {
@@ -257,4 +271,8 @@ void UI::displayHelp() const {
     std::cout << "For example: e2e4 moves the piece from e2 to e4." << std::endl;
     std::cout << "For pawn promotion, add q, r, b, or n at the end." << std::endl;
     std::cout << "For example: e7e8q promotes to a queen." << std::endl;
+
+    void UI::runPerftTests() {
+    PerftTester::runTestSuite();
+}
 }
