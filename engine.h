@@ -70,6 +70,18 @@ public:
         timeManaged = true;
     }
 
+    // Set time for this move in milliseconds
+void setTimeForMove(int timeMs) { 
+    timeAllocated = timeMs; 
+    timeManaged = true; 
+}
+
+// Enable/disable time management
+void setTimeManagement(bool enabled) { timeManaged = enabled; }
+
+// Check if we should stop searching due to time
+bool shouldStopSearch() const;
+
     // Set the search depth
     void setDepth(int depth) { maxDepth = depth; }
 
