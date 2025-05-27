@@ -22,6 +22,12 @@ void UI::runTacticalTests()
 {
     TacticalTester::runTestSuite(engine);
 }
+
+void UI::runPerftTests()
+{
+    PerftTester::runTestSuite();
+}
+
 void UI::run()
 {
     std::cout << "Welcome to the Chess Engine!" << std::endl;
@@ -400,8 +406,4 @@ void UI::displayHelp() const
     std::cout << "For pawn promotion, add q, r, b, or n at the end." << std::endl;
     std::cout << "For example: e7e8q promotes to a queen." << std::endl;
 
-    void UI::runPerftTests()
-    {
-        PerftTester::runTestSuite();
-    }
-}
+   
