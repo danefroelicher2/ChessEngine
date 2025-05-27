@@ -1,6 +1,7 @@
 #include "tactical_tests.h"
 #include <iostream>
 #include <algorithm>
+#include <chrono>
 
 bool TacticalTester::runTestSuite(Engine& engine) {
     std::cout << "=== Running Tactical Test Suite ===" << std::endl;
