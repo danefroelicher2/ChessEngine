@@ -5,7 +5,6 @@ project(ChessEngine)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Add source files
 set(SOURCES
     main.cpp
     piece.cpp
@@ -16,9 +15,10 @@ set(SOURCES
     ui.cpp
     zobrist.cpp
     transposition.cpp
+    perft.cpp
+    tactical_tests.cpp
 )
 
-# Add header files
 set(HEADERS
     main.h
     piece.h
@@ -29,6 +29,9 @@ set(HEADERS
     ui.h
     zobrist.h
     transposition.h
+    board_state.h
+    perft.h
+    tactical_tests.h
 )
 
 # Create executable
