@@ -1091,23 +1091,24 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
             int eval;
 
             // Full window search for first move, null window for others
-            if (foundPV)
-            {
-                // Try a null window search first
-                eval = -pvSearch(board, newDepth, -alpha - 1, -alpha, false, childPV, newHashKey, ply + 1, move);
+           if (foundPV)
+{
+    // Try a null window search first (scout search)
+    eval = -pvSearch(board, newDepth, -alpha - 1, -alpha, !maximizingPlayer, childPV, newHashKey, ply + 1, move);
 
-                // If we might fail high, do a full window search
-                if (eval > alpha && eval < beta)
-                {
-                    childPV.clear();
-                    eval = -pvSearch(board, newDepth, -beta, -alpha, false, childPV, newHashKey, ply + 1, move);
-                }
-            }
-            else
-            {
-                // First move gets a full window search
-                eval = -pvSearch(board, newDepth, -beta, -alpha, false, childPV, newHashKey, ply + 1, move);
-            }
+    // If we get a fail-high, re-search with full window
+    if (eval > alpha && eval < beta)
+    {
+        childPV.clear();
+        eval = -pvSearch(board, newDepth, -beta, -alpha, !maximizingPlayer, childPV, newHashKey, ply + 1, move);
+    }
+}
+else
+{
+    // First move gets a full window search
+    eval = -pvSearch(board, newDepth, -beta, -alpha, !maximizingPlayer, childPV, newHashKey, ply + 1, move);
+    foundPV = true; // Mark that we've found our PV move
+}
 
             // Unmake the move
             board.unmakeMove(move, previousState);
