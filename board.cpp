@@ -308,15 +308,9 @@ if (!moveFound) {
     return false;
 }
 
-    // Check if the move would leave the king in check
-    if (wouldBeInCheck(move, sideToMove))
-    {
-        return false;
-    }
-
     previousState.pieceHasMoved = piece->getHasMoved();
 
-      // Handle castling
+    // Handle castling BEFORE other validations
     if (piece->getType() == PieceType::KING) {
         // Kingside castling
         if (move.from.col == 4 && move.to.col == 6) {
@@ -474,6 +468,13 @@ piece->setMoved();
     // Update fullmove number
     if (sideToMove == Color::BLACK) {
         fullMoveNumber++;
+    }
+    
+ // Final validation - check if the move would leave the king in check
+    if (wouldBeInCheck(move, previousState.sideToMove)) {
+        // Undo all changes made so far
+        unmakeMove(move, previousState);
+        return false;
     }
     
     // Switch side to move

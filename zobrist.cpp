@@ -144,47 +144,45 @@ uint64_t Zobrist::updateHashKey(uint64_t currentKey, const Move& move, const Boa
         }
     }
     
-    // Handle castling rights changes (remove old ones)
-    if (board.getWhiteCanCastleKingside()) newKey ^= castlingKeys[0];
-    if (board.getWhiteCanCastleQueenside()) newKey ^= castlingKeys[1];
-    if (board.getBlackCanCastleKingside()) newKey ^= castlingKeys[2];
-    if (board.getBlackCanCastleQueenside()) newKey ^= castlingKeys[3];
+    // Handle castling rights changes efficiently (XOR only changed rights)
+    bool oldWK = board.getWhiteCanCastleKingside();
+    bool oldWQ = board.getWhiteCanCastleQueenside();
+    bool oldBK = board.getBlackCanCastleKingside();
+    bool oldBQ = board.getBlackCanCastleQueenside();
     
-    // Calculate new castling rights and add them back
-    bool newWhiteKingside = board.getWhiteCanCastleKingside();
-    bool newWhiteQueenside = board.getWhiteCanCastleQueenside();
-    bool newBlackKingside = board.getBlackCanCastleKingside();
-    bool newBlackQueenside = board.getBlackCanCastleQueenside();
+    // Calculate new castling rights
+    bool newWK = oldWK, newWQ = oldWQ, newBK = oldBK, newBQ = oldBQ;
     
     // Update based on move
     if (pieceType == static_cast<int>(PieceType::KING)) {
         if (movingColor == Color::WHITE) {
-            newWhiteKingside = newWhiteQueenside = false;
+            newWK = newWQ = false;
         } else {
-            newBlackKingside = newBlackQueenside = false;
+            newBK = newBQ = false;
         }
     }
-    if (pieceType == static_cast<int>(PieceType::ROOK)) {
+    else if (pieceType == static_cast<int>(PieceType::ROOK)) {
         if (movingColor == Color::WHITE) {
-            if (move.from.row == 0 && move.from.col == 0) newWhiteQueenside = false;
-            if (move.from.row == 0 && move.from.col == 7) newWhiteKingside = false;
+            if (move.from.row == 0 && move.from.col == 0) newWQ = false;
+            if (move.from.row == 0 && move.from.col == 7) newWK = false;
         } else {
-            if (move.from.row == 7 && move.from.col == 0) newBlackQueenside = false;
-            if (move.from.row == 7 && move.from.col == 7) newBlackKingside = false;
+            if (move.from.row == 7 && move.from.col == 0) newBQ = false;
+            if (move.from.row == 7 && move.from.col == 7) newBK = false;
         }
-    }
-    if (capturedPiece && capturedPiece->getType() == PieceType::ROOK) {
-        if (move.to.row == 0 && move.to.col == 0) newWhiteQueenside = false;
-        if (move.to.row == 0 && move.to.col == 7) newWhiteKingside = false;
-        if (move.to.row == 7 && move.to.col == 0) newBlackQueenside = false;
-        if (move.to.row == 7 && move.to.col == 7) newBlackKingside = false;
     }
     
-    // Add new castling rights
-    if (newWhiteKingside) newKey ^= castlingKeys[0];
-    if (newWhiteQueenside) newKey ^= castlingKeys[1];
-    if (newBlackKingside) newKey ^= castlingKeys[2];
-    if (newBlackQueenside) newKey ^= castlingKeys[3];
+    if (capturedPiece && capturedPiece->getType() == PieceType::ROOK) {
+        if (move.to.row == 0 && move.to.col == 0) newWQ = false;
+        if (move.to.row == 0 && move.to.col == 7) newWK = false;
+        if (move.to.row == 7 && move.to.col == 0) newBQ = false;
+        if (move.to.row == 7 && move.to.col == 7) newBK = false;
+    }
+    
+    // XOR only the changed castling rights
+    if (oldWK != newWK) newKey ^= castlingKeys[0];
+    if (oldWQ != newWQ) newKey ^= castlingKeys[1];
+    if (oldBK != newBK) newKey ^= castlingKeys[2];
+    if (oldBQ != newBQ) newKey ^= castlingKeys[3];
     
     // Handle en passant changes
     Position oldEnPassant = board.getEnPassantTarget();

@@ -361,8 +361,6 @@ Move Engine::iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashK
             std::cout << ", NPS: " << static_cast<long>(nodesSearched * 1000.0 / duration.count());
         }
 
-        // REPLACE the time management section in iterativeDeepeningSearch() with this:
-
         std::cout << ", PV: " << getPVString() << std::endl;
 
         // Time management check - decide whether to continue to next depth
@@ -898,6 +896,11 @@ if (ply >= MAX_QSEARCH_DEPTH)
             {
                 continue; // Skip this capture - it can't improve alpha
             }
+            
+            // Additional futility pruning for bad captures
+            if (capturedPiece && seeCapture(board, move) < -50) {
+                continue; // Skip obviously bad captures
+            }
         }
 
         if (capturedPiece)
@@ -1149,9 +1152,9 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
             if (foundPV)
             {
                 // For non-PV moves, try LMR first if applicable
-                if (lmrReduction > 0)
+               if (lmrReduction > 0)
                 {
-                    // Search with reduced depth
+                    // Search with reduced depth and null window
                     eval = -pvSearch(board, newDepth, -alpha - 1, -alpha, false, childPV, newHashKey, ply + 1, move);
 
                     // If LMR search fails high, re-search at full depth
@@ -1297,23 +1300,23 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
             if (foundPV)
             {
                 // For non-PV moves, try LMR first if applicable
-                if (lmrReduction > 0)
+               if (lmrReduction > 0)
                 {
-                    // Search with reduced depth
-                    eval = -pvSearch(board, newDepth, -beta + 1, -beta, true, childPV, newHashKey, ply + 1, move);
+                    // Search with reduced depth and null window
+                    eval = -pvSearch(board, newDepth, -beta, -beta + 1, true, childPV, newHashKey, ply + 1, move);
 
                     // If LMR search fails low, re-search at full depth
                     if (eval < beta)
                     {
                         newDepth = depth - 1 + moveExtension; // Full depth
                         childPV.clear();
-                        eval = -pvSearch(board, newDepth, -beta + 1, -beta, true, childPV, newHashKey, ply + 1, move);
+                        eval = -pvSearch(board, newDepth, -beta, -beta + 1, true, childPV, newHashKey, ply + 1, move);
                     }
                 }
                 else
                 {
                     // No reduction, do null window search
-                    eval = -pvSearch(board, newDepth, -beta + 1, -beta, true, childPV, newHashKey, ply + 1, move);
+                    eval = -pvSearch(board, newDepth, -beta, -beta + 1, true, childPV, newHashKey, ply + 1, move);
                 }
 
                 // If we get a fail-low, re-search with full window

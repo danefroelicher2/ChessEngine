@@ -7,22 +7,10 @@ std::vector<Move> Pawn::getLegalMoves(const Board& board) const {
     int direction = (color == Color::WHITE) ? 1 : -1;
     Position front(position.row + direction, position.col);
     
-    // Forward move (1 square)
-    if (front.isValid() && !board.getPieceAt(front)) {
-        // Check for promotion
-        if (front.row == 0 || front.row == 7) {
-            moves.emplace_back(position, front, PieceType::QUEEN);
-            moves.emplace_back(position, front, PieceType::ROOK);
-            moves.emplace_back(position, front, PieceType::BISHOP);
-            moves.emplace_back(position, front, PieceType::KNIGHT);
-        } else {
-            moves.emplace_back(position, front);
-        }
-
-        if (front.isValid() && !board.getPieceAt(front)) {
+   // Forward move (1 square)
+if (front.isValid() && !board.getPieceAt(front)) {
     // Check for promotion
     if (front.row == 0 || front.row == 7) {
-        // Always add all promotion options for completeness
         moves.emplace_back(position, front, PieceType::QUEEN);
         moves.emplace_back(position, front, PieceType::ROOK);
         moves.emplace_back(position, front, PieceType::BISHOP);
@@ -30,16 +18,16 @@ std::vector<Move> Pawn::getLegalMoves(const Board& board) const {
     } else {
         moves.emplace_back(position, front);
     }
-        
-        // Forward move (2 squares) if pawn is on starting row
-        if ((color == Color::WHITE && position.row == 1) || 
-            (color == Color::BLACK && position.row == 6)) {
-            Position doubleFront(position.row + 2 * direction, position.col);
-            if (doubleFront.isValid() && !board.getPieceAt(doubleFront)) {
-                moves.emplace_back(position, doubleFront);
-            }
+    
+    // Forward move (2 squares) if pawn is on starting row
+    if ((color == Color::WHITE && position.row == 1) || 
+        (color == Color::BLACK && position.row == 6)) {
+        Position doubleFront(position.row + 2 * direction, position.col);
+        if (doubleFront.isValid() && !board.getPieceAt(doubleFront)) {
+            moves.emplace_back(position, doubleFront);
         }
     }
+}
     
     // Capture moves (including en passant)
     for (int dCol : {-1, 1}) {
