@@ -379,6 +379,10 @@ if (!moveFound) {
     // Save the original piece type for undoing promotions
     previousState.originalType = piece->getType();
     
+// Get the original piece type before any modifications
+auto originalPiece = getPieceAt(move.from);
+PieceType originalPieceType = originalPiece->getType();
+
 // Handle pawn promotion
 if (isPawnMove && (move.to.row == 0 || move.to.row == 7) && move.promotion != PieceType::NONE) {
     previousState.wasPromotion = true;
@@ -401,9 +405,21 @@ if (isPawnMove && (move.to.row == 0 || move.to.row == 7) && move.promotion != Pi
             piece = std::make_shared<Queen>(sideToMove, move.to);
             break;
     }
+    
+    // Update king pointers if promoting to king (shouldn't happen in normal chess)
+    if (move.promotion == PieceType::KING) {
+        auto king = std::make_shared<King>(sideToMove, move.to);
+        piece = king;
+        if (sideToMove == Color::WHITE) {
+            whiteKing = king;
+        } else {
+            blackKing = king;
+        }
+    }
+}
 
-    // Update castling rights based on piece movement
-if (piece->getType() == PieceType::KING) {
+// Update castling rights based on ORIGINAL piece movement (MOVED OUTSIDE PROMOTION BLOCK)
+if (originalPieceType == PieceType::KING) {
     if (sideToMove == Color::WHITE) {
         whiteCanCastleKingside = false;
         whiteCanCastleQueenside = false;
@@ -414,7 +430,7 @@ if (piece->getType() == PieceType::KING) {
 }
 
 // Update castling rights if rook moves
-if (piece->getType() == PieceType::ROOK) {
+if (originalPieceType == PieceType::ROOK) {
     if (sideToMove == Color::WHITE) {
         if (move.from.row == 0 && move.from.col == 0) {
             whiteCanCastleQueenside = false;
@@ -445,18 +461,6 @@ if (previousState.capturedPiece && previousState.capturedPiece->getType() == Pie
     }
     if (move.to.row == 7 && move.to.col == 7) {
         blackCanCastleKingside = false;
-    }
-}
-    
-    // Update king pointers if promoting to king (shouldn't happen in normal chess)
-    if (move.promotion == PieceType::KING) {
-        auto king = std::make_shared<King>(sideToMove, move.to);
-        piece = king;
-        if (sideToMove == Color::WHITE) {
-            whiteKing = king;
-        } else {
-            blackKing = king;
-        }
     }
 }
 

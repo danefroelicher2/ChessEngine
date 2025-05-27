@@ -472,12 +472,16 @@ int Engine::getDepthAdjustment(const Move &move, const Board &board, bool isPVMo
 // Static Exchange Evaluation (SEE)
 int Engine::seeCapture(const Board &board, const Move &move) const
 {
+    auto movingPiece = board.getPieceAt(move.from);
+    if (!movingPiece) {
+        return 0; // Invalid move - no piece at source
+    }
+    
     auto capturedPiece = board.getPieceAt(move.to);
     if (!capturedPiece)
     {
         // Check for en passant
-        auto movingPiece = board.getPieceAt(move.from);
-        if (movingPiece && movingPiece->getType() == PieceType::PAWN &&
+        if (movingPiece->getType() == PieceType::PAWN &&
             move.to == board.getEnPassantTarget())
         {
             return PAWN_VALUE; // En passant captures a pawn
@@ -748,12 +752,16 @@ int Engine::getMoveScore(const Move &move, const Board &board, const Move &ttMov
         }
     }
 
-    // 3. Captures (scored by MVV-LVA or SEE)
-    auto movingPiece = board.getPieceAt(move.from);
-    auto capturedPiece = board.getPieceAt(move.to);
+// 3. Captures (scored by MVV-LVA or SEE)
+auto movingPiece = board.getPieceAt(move.from);
+auto capturedPiece = board.getPieceAt(move.to);
 
-    if (capturedPiece)
-    {
+// Add null check for moving piece
+if (!movingPiece) {
+    return 0; // Invalid move
+}
+
+if (capturedPiece) {
         // Calculate Static Exchange Evaluation score
         int seeScore = seeCapture(board, move);
 
