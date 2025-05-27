@@ -116,6 +116,15 @@ public:
 
 private:
 
+// Add to engine.h private section:
+void generateCaptureMoves(const Board& board, std::vector<Move>& captures) const;
+void generatePawnCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
+void generateKnightCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
+void generateBishopCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
+void generateRookCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
+void generateQueenCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
+void generateKingCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
+
 // Add to engine.h private members:
 Zobrist zobristHasher;
     // Helper function to get depth adjustment for a move

@@ -142,56 +142,53 @@ uint64_t Zobrist::updateHashKey(uint64_t currentKey, const Move& move, const Boa
         }
     }
     
-    // Handle castling rights changes efficiently (XOR only changed rights)
-    bool oldWK = board.getWhiteCanCastleKingside();
-    bool oldWQ = board.getWhiteCanCastleQueenside();
-    bool oldBK = board.getBlackCanCastleKingside();
-    bool oldBQ = board.getBlackCanCastleQueenside();
-    
-    // Calculate new castling rights
-    bool newWK = oldWK, newWQ = oldWQ, newBK = oldBK, newBQ = oldBQ;
-    
-    // Update based on move
-    if (pieceType == static_cast<int>(PieceType::KING)) {
-        if (movingColor == Color::WHITE) {
-            newWK = newWQ = false;
-        } else {
-            newBK = newBQ = false;
-        }
+    // REPLACE the castling rights section in updateHashKey() with this optimized version:
+
+// Handle castling rights changes - only check what's necessary
+// First, remove old castling rights from hash
+if (board.getWhiteCanCastleKingside()) newKey ^= castlingKeys[0];
+if (board.getWhiteCanCastleQueenside()) newKey ^= castlingKeys[1];
+if (board.getBlackCanCastleKingside()) newKey ^= castlingKeys[2];
+if (board.getBlackCanCastleQueenside()) newKey ^= castlingKeys[3];
+
+// Now determine what castling rights remain after this move
+bool newWK = board.getWhiteCanCastleKingside();
+bool newWQ = board.getWhiteCanCastleQueenside();
+bool newBK = board.getBlackCanCastleKingside();
+bool newBQ = board.getBlackCanCastleQueenside();
+
+// Only do the expensive checks if the piece type could affect castling
+if (pieceType == static_cast<int>(PieceType::KING)) {
+    // King move removes all castling rights for that color
+    if (movingColor == Color::WHITE) {
+        newWK = newWQ = false;
+    } else {
+        newBK = newBQ = false;
     }
-    else if (pieceType == static_cast<int>(PieceType::ROOK)) {
-        if (movingColor == Color::WHITE) {
-            if (move.from.row == 0 && move.from.col == 0) newWQ = false;
-            if (move.from.row == 0 && move.from.col == 7) newWK = false;
-        } else {
-            if (move.from.row == 7 && move.from.col == 0) newBQ = false;
-            if (move.from.row == 7 && move.from.col == 7) newBK = false;
-        }
+} else if (pieceType == static_cast<int>(PieceType::ROOK)) {
+    // Rook move - only check specific corners
+    if (movingColor == Color::WHITE && move.from.row == 0) {
+        if (move.from.col == 0) newWQ = false;      // a1 rook
+        else if (move.from.col == 7) newWK = false; // h1 rook
+    } else if (movingColor == Color::BLACK && move.from.row == 7) {
+        if (move.from.col == 0) newBQ = false;      // a8 rook
+        else if (move.from.col == 7) newBK = false; // h8 rook
     }
-    
-    if (capturedPiece && capturedPiece->getType() == PieceType::ROOK) {
-        if (move.to.row == 0 && move.to.col == 0) newWQ = false;
-        if (move.to.row == 0 && move.to.col == 7) newWK = false;
-        if (move.to.row == 7 && move.to.col == 0) newBQ = false;
-        if (move.to.row == 7 && move.to.col == 7) newBK = false;
-    }
-    
-    // XOR only the changed castling rights
-    if (oldWK != newWK) newKey ^= castlingKeys[0];
-    if (oldWQ != newWQ) newKey ^= castlingKeys[1];
-    if (oldBK != newBK) newKey ^= castlingKeys[2];
-    if (oldBQ != newBQ) newKey ^= castlingKeys[3];
-    
-    // Handle en passant changes
-    Position oldEnPassant = board.getEnPassantTarget();
-    if (oldEnPassant.isValid()) {
-        newKey ^= enPassantKeys[oldEnPassant.col];
-    }
-    
-    // Add new en passant if double pawn push
-    if (pieceType == static_cast<int>(PieceType::PAWN) && abs(move.to.row - move.from.row) == 2) {
-        newKey ^= enPassantKeys[move.from.col];
-    }
-    
-    return newKey;
 }
+
+// Check if a rook was captured (only check corner squares)
+if (capturedPiece && capturedPiece->getType() == PieceType::ROOK) {
+    if (move.to.row == 0) {
+        if (move.to.col == 0) newWQ = false;      // a1 rook captured
+        else if (move.to.col == 7) newWK = false; // h1 rook captured
+    } else if (move.to.row == 7) {
+        if (move.to.col == 0) newBQ = false;      // a8 rook captured
+        else if (move.to.col == 7) newBK = false; // h8 rook captured
+    }
+}
+
+// Add back the new castling rights
+if (newWK) newKey ^= castlingKeys[0];
+if (newWQ) newKey ^= castlingKeys[1];
+if (newBK) newKey ^= castlingKeys[2];
+if (newBQ) newKey ^= castlingKeys[3];

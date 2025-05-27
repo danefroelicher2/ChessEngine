@@ -105,6 +105,195 @@ void Engine::clearCounterMoves()
         }
     }
 }
+// Add this method to engine.cpp
+void Engine::generateCaptureMoves(const Board& board, std::vector<Move>& captures) const
+{
+    captures.clear();
+    
+    Color sideToMove = board.getSideToMove();
+    Position enPassantTarget = board.getEnPassantTarget();
+    
+    // Loop through all squares to find our pieces
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+            Position from(row, col);
+            auto piece = board.getPieceAt(from);
+            
+            if (!piece || piece->getColor() != sideToMove) continue;
+            
+            // Generate captures for each piece type
+            switch (piece->getType()) {
+                case PieceType::PAWN:
+                    generatePawnCaptures(board, from, captures);
+                    break;
+                    
+                case PieceType::KNIGHT:
+                    generateKnightCaptures(board, from, captures);
+                    break;
+                    
+                case PieceType::BISHOP:
+                    generateBishopCaptures(board, from, captures);
+                    break;
+                    
+                case PieceType::ROOK:
+                    generateRookCaptures(board, from, captures);
+                    break;
+                    
+                case PieceType::QUEEN:
+                    generateQueenCaptures(board, from, captures);
+                    break;
+                    
+                case PieceType::KING:
+                    generateKingCaptures(board, from, captures);
+                    break;
+                    
+                default:
+                    break;
+            }
+        }
+    }
+}
+
+// Add these helper methods to engine.cpp as well:
+
+void Engine::generatePawnCaptures(const Board& board, Position from, std::vector<Move>& captures) const
+{
+    auto piece = board.getPieceAt(from);
+    if (!piece || piece->getType() != PieceType::PAWN) return;
+    
+    Color color = piece->getColor();
+    int direction = (color == Color::WHITE) ? 1 : -1;
+    
+    // Diagonal captures
+    for (int dCol : {-1, 1}) {
+        Position to(from.row + direction, from.col + dCol);
+        
+        if (!to.isValid()) continue;
+        
+        auto target = board.getPieceAt(to);
+        
+        // Regular capture
+        if (target && target->getColor() != color) {
+            // Check for promotion
+            if (to.row == 0 || to.row == 7) {
+                captures.emplace_back(from, to, PieceType::QUEEN);
+                captures.emplace_back(from, to, PieceType::ROOK);
+                captures.emplace_back(from, to, PieceType::BISHOP);
+                captures.emplace_back(from, to, PieceType::KNIGHT);
+            } else {
+                captures.emplace_back(from, to);
+            }
+        }
+        // En passant capture
+        else if (to == board.getEnPassantTarget()) {
+            captures.emplace_back(from, to);
+        }
+    }
+}
+
+void Engine::generateKnightCaptures(const Board& board, Position from, std::vector<Move>& captures) const
+{
+    auto piece = board.getPieceAt(from);
+    if (!piece || piece->getType() != PieceType::KNIGHT) return;
+    
+    Color color = piece->getColor();
+    const std::vector<std::pair<int, int>> knightMoves = {
+        {-2, -1}, {-2, 1}, {-1, -2}, {-1, 2},
+        {1, -2}, {1, 2}, {2, -1}, {2, 1}
+    };
+    
+    for (const auto& offset : knightMoves) {
+        Position to(from.row + offset.first, from.col + offset.second);
+        
+        if (!to.isValid()) continue;
+        
+        auto target = board.getPieceAt(to);
+        if (target && target->getColor() != color) {
+            captures.emplace_back(from, to);
+        }
+    }
+}
+
+void Engine::generateBishopCaptures(const Board& board, Position from, std::vector<Move>& captures) const
+{
+    auto piece = board.getPieceAt(from);
+    if (!piece || piece->getType() != PieceType::BISHOP) return;
+    
+    Color color = piece->getColor();
+    const std::vector<std::pair<int, int>> directions = {{-1, -1}, {-1, 1}, {1, -1}, {1, 1}};
+    
+    for (const auto& dir : directions) {
+        for (int distance = 1; distance < 8; distance++) {
+            Position to(from.row + dir.first * distance, from.col + dir.second * distance);
+            
+            if (!to.isValid()) break;
+            
+            auto target = board.getPieceAt(to);
+            if (target) {
+                if (target->getColor() != color) {
+                    captures.emplace_back(from, to);
+                }
+                break; // Can't go further
+            }
+        }
+    }
+}
+
+void Engine::generateRookCaptures(const Board& board, Position from, std::vector<Move>& captures) const
+{
+    auto piece = board.getPieceAt(from);
+    if (!piece || piece->getType() != PieceType::ROOK) return;
+    
+    Color color = piece->getColor();
+    const std::vector<std::pair<int, int>> directions = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+    
+    for (const auto& dir : directions) {
+        for (int distance = 1; distance < 8; distance++) {
+            Position to(from.row + dir.first * distance, from.col + dir.second * distance);
+            
+            if (!to.isValid()) break;
+            
+            auto target = board.getPieceAt(to);
+            if (target) {
+                if (target->getColor() != color) {
+                    captures.emplace_back(from, to);
+                }
+                break; // Can't go further
+            }
+        }
+    }
+}
+
+void Engine::generateQueenCaptures(const Board& board, Position from, std::vector<Move>& captures) const
+{
+    // Queen moves like both rook and bishop
+    generateRookCaptures(board, from, captures);
+    generateBishopCaptures(board, from, captures);
+}
+
+void Engine::generateKingCaptures(const Board& board, Position from, std::vector<Move>& captures) const
+{
+    auto piece = board.getPieceAt(from);
+    if (!piece || piece->getType() != PieceType::KING) return;
+    
+    Color color = piece->getColor();
+    const std::vector<std::pair<int, int>> directions = {
+        {-1, -1}, {-1, 0}, {-1, 1},
+        {0, -1},           {0, 1},
+        {1, -1},  {1, 0},  {1, 1}
+    };
+    
+    for (const auto& dir : directions) {
+        Position to(from.row + dir.first, from.col + dir.second);
+        
+        if (!to.isValid()) continue;
+        
+        auto target = board.getPieceAt(to);
+        if (target && target->getColor() != color) {
+            captures.emplace_back(from, to);
+        }
+    }
+}
 
 // Clear the history table
 void Engine::clearHistoryTable()
@@ -726,56 +915,62 @@ bool Engine::isPVMove(const Move &move, const std::vector<Move> &pv, int ply) co
             pvMove.to.col == move.to.col);
 }
 
-// Get score for move ordering
+// REPLACE the beginning of getMoveScore() method with this improved version:
+
 int Engine::getMoveScore(const Move &move, const Board &board, const Move &ttMove,
                          const std::vector<Move> &pv, int ply, Color sideToMove,
                          const Move &lastMove) const
 {
     // CRITICAL: Check for valid moving piece first
     auto movingPiece = board.getPieceAt(move.from);
-    if (!movingPiece)
-    {
+    if (!movingPiece) {
         return -999999; // Invalid move - heavily penalize
     }
 
-    // 1. Transposition table move
+    // 1. Transposition table move (highest priority)
     if (ttMove.from.isValid() && ttMove.to.isValid() &&
         ttMove.from.row == move.from.row && ttMove.from.col == move.from.col &&
         ttMove.to.row == move.to.row && ttMove.to.col == move.to.col)
     {
-        return 1000000;
+        return 10000000; // Highest priority
     }
 
-    // 2. Principal variation move - check from multiple depths
+    // 2. Principal variation moves from ALL depths (not just current)
     for (int d = maxDepth; d >= 1; d--)
     {
         if (isPVMove(move, d, ply))
         {
-            return 900000 + d * 1000; // PV moves from deeper searches get higher priority
+            return 9000000 + d * 1000; // Very high priority, deeper searches get bonus
         }
     }
 
-    // 3. Captures (scored by MVV-LVA or SEE)
+    // 3. Winning captures (positive SEE) - ordered by victim value then SEE score
     auto capturedPiece = board.getPieceAt(move.to);
-
-    if (capturedPiece)
-    {
-        // Calculate Static Exchange Evaluation score
+    if (capturedPiece) {
         int seeScore = seeCapture(board, move);
-
-        // If it's a good capture (positive SEE)
-        if (seeScore > 0)
-        {
-            return 400000 + seeScore;
+        
+        if (seeScore > 0) {
+            // Good captures: prioritize by victim value, then by SEE score
+            int victimValue = getPieceValue(capturedPiece->getType());
+            int attackerValue = getPieceValue(movingPiece->getType());
+            
+            // MVV-LVA: Most Valuable Victim - Least Valuable Attacker
+            int mvvLvaScore = (victimValue * 100) - (attackerValue / 10);
+            
+            return 8000000 + mvvLvaScore + seeScore;
         }
-        // Still prioritize captures, but lower than good captures
-        else
-        {
-            return 300000 + getMVVLVAScore(movingPiece->getType(), capturedPiece->getType());
+        // Even captures: still prioritize over non-captures but below good ones
+        else if (seeScore == 0) {
+            int victimValue = getPieceValue(capturedPiece->getType());
+            return 7000000 + victimValue;
+        }
+        // Bad captures: lowest priority among captures
+        else {
+            return 6000000 + seeScore; // seeScore is negative here
         }
     }
 
-    // 4. Counter move
+    // 4. Counter moves (moves that refute the opponent's last move)
     if (lastMove.from.isValid() && lastMove.to.isValid())
     {
         Move counter = getCounterMove(lastMove);
@@ -783,26 +978,45 @@ int Engine::getMoveScore(const Move &move, const Board &board, const Move &ttMov
             counter.from.row == move.from.row && counter.from.col == move.from.col &&
             counter.to.row == move.to.row && counter.to.col == move.to.col)
         {
-            return 2500000;
+            return 5000000;
         }
     }
 
-    // 5. Killer moves
+    // 5. Killer moves (moves that caused beta cutoffs at this ply)
     if (isKillerMove(move, ply))
     {
         // First killer move gets slightly higher score than second
-        if (killerMoves[ply][0].from.row == move.from.row &&
+        if (ply < MAX_PLY && 
+            killerMoves[ply][0].from.row == move.from.row &&
             killerMoves[ply][0].from.col == move.from.col &&
             killerMoves[ply][0].to.row == move.to.row &&
             killerMoves[ply][0].to.col == move.to.col)
         {
-            return 2000100;
+            return 4000100;
         }
-        return 2000000;
+        return 4000000;
     }
 
-    // 6. History heuristic for non-captures
-    return getHistoryScore(move, sideToMove);
+    // 6. History heuristic (how often this move caused cutoffs in the past)
+    int historyScore = getHistoryScore(move, sideToMove);
+    
+    // 7. Basic positional scoring for remaining moves
+    int positionalScore = 0;
+    
+    // Bonus for moves toward the center
+    int centerDistance = abs(move.to.row - 3.5) + abs(move.to.col - 3.5);
+    positionalScore += (7 - centerDistance) * 10;
+    
+    // Bonus for advancing pawns
+    if (movingPiece->getType() == PieceType::PAWN) {
+        if (sideToMove == Color::WHITE) {
+            positionalScore += move.to.row * 20;
+        } else {
+            positionalScore += (7 - move.to.row) * 20;
+        }
+    }
+    
+    return historyScore + positionalScore;
 }
 
 // Quiescence search for handling captures at leaf nodes
@@ -831,23 +1045,21 @@ int Engine::quiescenceSearch(Board &board, int alpha, int beta, uint64_t hashKey
     std::vector<Move> qMoves;
     bool inCheck = board.isInCheck();
 
-    // Get all legal moves
+// Generate capturing moves and checks efficiently
+std::vector<Move> qMoves;
+bool inCheck = board.isInCheck();
+
+if (inCheck) {
+    // If in check, we need all legal moves (no choice but to generate all)
     auto legalMoves = board.generateLegalMoves();
+    qMoves = legalMoves;
+} else {
+    // Generate only captures directly - much more efficient!
+    generateCaptureMoves(board, qMoves);
+}
 
-    // Filter only capturing moves and checks if in check
-    for (const auto &move : legalMoves)
-    {
-        auto capturedPiece = board.getPieceAt(move.to);
-        bool isCapture = capturedPiece ||
-                         (board.getPieceAt(move.from)->getType() == PieceType::PAWN &&
-                          move.to == board.getEnPassantTarget());
-
-        // Include all moves if in check, otherwise only include captures
-        if (inCheck || isCapture)
-        {
-            qMoves.push_back(move);
-        }
-    }
+if (qMoves.empty())
+    return standPat;
 
     if (qMoves.empty())
         return standPat;
