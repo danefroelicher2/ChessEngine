@@ -1060,7 +1060,7 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
     // This will be used to store the principal variation
     std::vector<Move> childPV;
 
-    // REPLACE the maximizing player section in pvSearch method with this:
+  // REPLACE the maximizing player section in pvSearch method with this:
 if (maximizingPlayer)
 {
     int maxEval = std::numeric_limits<int>::min();
@@ -1207,7 +1207,7 @@ if (maximizingPlayer)
 
     return maxEval;
 }
-    // REPLACE the minimizing player section (else clause) in pvSearch method with this:
+   // REPLACE the minimizing player section (else clause) in pvSearch method with this:
 else
 {
     // Minimizing player
