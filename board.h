@@ -38,8 +38,9 @@ public:
     // Set a piece at a specific position
     void setPieceAt(const Position& pos, std::shared_ptr<Piece> piece);
     
-    // Add these method declarations to the Board class in board.h:
+ // Method declarations for Board class
 bool makeMove(const Move& move);
+bool makeMove(const Move& move, BoardState& previousState);
 bool unmakeMove(const Move& move, const BoardState& previousState);
     
     // Generate all legal moves for the current side to move

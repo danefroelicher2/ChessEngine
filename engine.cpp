@@ -380,7 +380,6 @@ Move Engine::iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashK
             }
         }
     }
-}
 
 return bestMove;
 }

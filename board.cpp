@@ -265,11 +265,12 @@ void Board::setPieceAt(const Position &pos, std::shared_ptr<Piece> piece)
     }
 }
 
-bool Board::makeMove(const Move &move, BoardState &previousState)
 bool Board::makeMove(const Move& move) {
     BoardState dummy; // We don't need to save state for the public interface
     return makeMove(move, dummy);
 }
+
+bool Board::makeMove(const Move &move, BoardState &previousState)
 {
     previousState.sideToMove = sideToMove;
     previousState.whiteCanCastleKingside = whiteCanCastleKingside;
