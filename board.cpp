@@ -293,19 +293,81 @@ bool Board::makeMove(const Move &move, BoardState &previousState)
     if (piece->getColor() != sideToMove)
         return false;
 
-// Basic validation - check if piece can potentially make this move
-auto potentialMoves = piece->getLegalMoves(*this);
-bool moveFound = false;
-for (const auto& m : potentialMoves) {
-    if (m.from.row == move.from.row && m.from.col == move.from.col && 
-        m.to.row == move.to.row && m.to.col == move.to.col &&
-        m.promotion == move.promotion) {
-        moveFound = true;
-        break;
-    }
-}
-if (!moveFound) {
+// Efficient basic validation - check move pattern without generating all moves
+if (!isValidMovePattern(piece, move)) {
     return false;
+}
+
+// Add this NEW HELPER METHOD to board.cpp (add after wouldBeInCheck method):
+bool Board::isValidMovePattern(std::shared_ptr<Piece> piece, const Move& move) const
+{
+    if (!piece || !move.from.isValid() || !move.to.isValid()) {
+        return false;
+    }
+    
+    PieceType type = piece->getType();
+    Color color = piece->getColor();
+    int rowDiff = move.to.row - move.from.row;
+    int colDiff = move.to.col - move.from.col;
+    
+    // Check basic move patterns for each piece type
+    switch (type) {
+        case PieceType::PAWN: {
+            int direction = (color == Color::WHITE) ? 1 : -1;
+            
+            // Forward moves
+            if (colDiff == 0) {
+                if (rowDiff == direction) return true; // Single step
+                if (rowDiff == 2 * direction) {
+                    // Double step from starting position
+                    bool startingRank = (color == Color::WHITE && move.from.row == 1) || 
+                                       (color == Color::BLACK && move.from.row == 6);
+                    return startingRank;
+                }
+            }
+            // Diagonal captures (including en passant)
+            else if (abs(colDiff) == 1 && rowDiff == direction) {
+                auto target = getPieceAt(move.to);
+                return (target && target->getColor() != color) || 
+                       (move.to == getEnPassantTarget());
+            }
+            return false;
+        }
+        
+        case PieceType::KNIGHT: {
+            return (abs(rowDiff) == 2 && abs(colDiff) == 1) || 
+                   (abs(rowDiff) == 1 && abs(colDiff) == 2);
+        }
+        
+        case PieceType::BISHOP: {
+            if (abs(rowDiff) != abs(colDiff)) return false;
+            return isPathClearForMove(move.from, move.to);
+        }
+        
+        case PieceType::ROOK: {
+            if (rowDiff != 0 && colDiff != 0) return false;
+            return isPathClearForMove(move.from, move.to);
+        }
+        
+        case PieceType::QUEEN: {
+            if (rowDiff != 0 && colDiff != 0 && abs(rowDiff) != abs(colDiff)) return false;
+            return isPathClearForMove(move.from, move.to);
+        }
+        
+        case PieceType::KING: {
+            // Regular king moves
+            if (abs(rowDiff) <= 1 && abs(colDiff) <= 1) return true;
+            
+            // Castling moves
+            if (abs(rowDiff) == 0 && abs(colDiff) == 2) {
+                return canCastle(move);
+            }
+            return false;
+        }
+        
+        default:
+            return false;
+    }
 }
 
     previousState.pieceHasMoved = piece->getHasMoved();

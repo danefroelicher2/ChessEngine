@@ -124,6 +124,8 @@ void generateBishopCaptures(const Board& board, Position from, std::vector<Move>
 void generateRookCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
 void generateQueenCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
 void generateKingCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
+void generateCheckEvasions(const Board& board, std::vector<Move>& evasions) const;
+void generatePromotions(const Board& board, std::vector<Move>& promotions) const;
 
 // Add to engine.h private members:
 Zobrist zobristHasher;

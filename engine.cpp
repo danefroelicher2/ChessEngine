@@ -551,10 +551,12 @@ Move Engine::iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashK
 
         std::cout << ", PV: " << getPVString() << std::endl;
 
-        // Time management check - decide whether to continue to next depth
-        if (timeManaged && timeAllocated > 0)
+          if (timeManaged && timeAllocated > 0)
         {
             int timeUsed = duration.count();
+            
+            // Dynamic buffer calculation
+            int dynamicBuffer = std::max(50, std::min(500, timeAllocated * 5 / 100));
 
             // Calculate adjusted time allocation based on position stability
             int adjustedTimeAllocation = timeAllocated;
@@ -566,26 +568,29 @@ Move Engine::iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashK
             }
 
             // Stop if we've used most of our time
-            if (timeUsed >= adjustedTimeAllocation - timeBuffer)
+            if (timeUsed >= adjustedTimeAllocation - dynamicBuffer)
             {
                 std::cout << "Stopping search due to time limit. Time used: "
-                          << timeUsed << "ms" << std::endl;
+                          << timeUsed << "ms (buffer: " << dynamicBuffer << "ms)" << std::endl;
                 break;
             }
 
-            // Estimate time for next iteration: typically 4-5x more nodes required
+            // Improved time estimation for next iteration
             if (nodesThisIteration > 0 && depth > 1)
             {
-                double branchingFactor = 4.5; // Conservative estimate
+                // More conservative branching factor for better time estimation
+                double branchingFactor = (depth <= 4) ? 3.5 : 4.5;
                 long estimatedNodesNext = static_cast<long>(nodesThisIteration * branchingFactor);
                 double estimatedTimeNext = (double)timeUsed * estimatedNodesNext / nodesThisIteration;
 
-                // If we estimate we'll exceed our time allocation, stop now
-                if (timeUsed + estimatedTimeNext + timeBuffer > adjustedTimeAllocation)
+                // Be more conservative with time estimation
+                int conservativeBuffer = dynamicBuffer + (dynamicBuffer / 2);
+                
+                if (timeUsed + estimatedTimeNext + conservativeBuffer > adjustedTimeAllocation)
                 {
                     std::cout << "Stopping search due to time estimation. Time used: "
                               << timeUsed << "ms, Estimated for next: "
-                              << estimatedTimeNext << "ms" << std::endl;
+                              << estimatedTimeNext << "ms (buffer: " << conservativeBuffer << "ms)" << std::endl;
                     break;
                 }
             }
@@ -892,44 +897,67 @@ void Engine::updateHistoryScore(const Move &move, int depth, Color color)
     int fromIdx = move.from.row * 8 + move.from.col;
     int toIdx = move.to.row * 8 + move.to.col;
 
-    // Bonus based on depth - deeper searches get higher bonuses
-    int bonus = depth * depth;
-
-    // FIXED: Proper aging algorithm instead of simple division
-    // Age the move that caused the cutoff (increase its score)
-    historyTable[colorIdx][fromIdx][toIdx] += bonus;
-
-    // Age all other moves for this color (decrease their scores slightly)
-    // This is called "aging" - recent moves become more important
-    for (int from = 0; from < 64; from++)
+    // 🔥 FIX #4: ROBUST HISTORY TABLE OVERFLOW PREVENTION
+    
+    // Calculate bonus based on depth - but cap it to prevent overflow
+    int bonus = std::min(depth * depth, 1024); // Cap individual bonuses
+    
+    // Check for potential overflow BEFORE adding
+    const int MAX_HISTORY_SCORE = 16384;
+    const int OVERFLOW_THRESHOLD = MAX_HISTORY_SCORE - 2048; // Leave some headroom
+    
+    // If we're approaching overflow, scale down ALL entries first
+    if (historyTable[colorIdx][fromIdx][toIdx] > OVERFLOW_THRESHOLD)
     {
-        for (int to = 0; to < 64; to++)
-        {
-            if (from != fromIdx || to != toIdx) // Don't age the move that just caused cutoff
-            {
-                // Reduce other moves' scores by a small amount (aging factor)
-                // This makes recent successful moves more prominent
-                historyTable[colorIdx][from][to] = 
-                    (historyTable[colorIdx][from][to] * 15) / 16; // Reduce by 1/16th
-            }
-        }
-    }
-
-    // Prevent overflow with better bounds checking
-    const int MAX_HISTORY_SCORE = 8192;
-    if (historyTable[colorIdx][fromIdx][toIdx] > MAX_HISTORY_SCORE)
-    {
-        // Scale down ALL scores proportionally to maintain relative relationships
+        // Aggressive scaling to prevent overflow
         for (int c = 0; c < 2; c++)
         {
             for (int from = 0; from < 64; from++)
             {
                 for (int to = 0; to < 64; to++)
                 {
-                    historyTable[c][from][to] = (historyTable[c][from][to] * 3) / 4;
+                    historyTable[c][from][to] = (historyTable[c][from][to] * 3) / 8; // Reduce by 5/8
                 }
             }
         }
+        std::cout << "History table scaled down to prevent overflow\n";
+    }
+    
+    // Now safely add the bonus
+    historyTable[colorIdx][fromIdx][toIdx] += bonus;
+    
+    // More aggressive aging of other moves to maintain relative differences
+    const int AGING_DENOMINATOR = 32; // More aggressive than 16
+    
+    for (int from = 0; from < 64; from++)
+    {
+        for (int to = 0; to < 64; to++)
+        {
+            if (from != fromIdx || to != toIdx) // Don't age the move that just caused cutoff
+            {
+                // More aggressive aging: reduce by 1/32nd instead of 1/16th
+                historyTable[colorIdx][from][to] -= historyTable[colorIdx][from][to] / AGING_DENOMINATOR;
+                
+                // Ensure we don't go negative
+                if (historyTable[colorIdx][from][to] < 0)
+                {
+                    historyTable[colorIdx][from][to] = 0;
+                }
+            }
+        }
+    }
+    
+    // Final safety check - should never happen now, but just in case
+    if (historyTable[colorIdx][fromIdx][toIdx] > MAX_HISTORY_SCORE)
+    {
+        historyTable[colorIdx][fromIdx][toIdx] = MAX_HISTORY_SCORE;
+    }
+    
+    // Debug output for monitoring (remove in production)
+    if (historyTable[colorIdx][fromIdx][toIdx] > MAX_HISTORY_SCORE / 2)
+    {
+        // Only log when scores get high
+        // std::cout << "High history score: " << historyTable[colorIdx][fromIdx][toIdx] << " for move " << move.toString() << std::endl;
     }
 }
 
@@ -1082,21 +1110,105 @@ int Engine::quiescenceSearch(Board &board, int alpha, int beta, uint64_t hashKey
     if (standPat > alpha)
         alpha = standPat;
 
-    // Generate capturing moves and checks
-    std::vector<Move> qMoves;
-    bool inCheck = board.isInCheck();
-
-// Generate capturing moves and checks efficiently
-std::vector<Move> qMoves;
+ std::vector<Move> qMoves;
 bool inCheck = board.isInCheck();
 
 if (inCheck) {
-    // If in check, we need all legal moves (no choice but to generate all)
-    auto legalMoves = board.generateLegalMoves();
-    qMoves = legalMoves;
+    // Generate only check evasions - much more efficient than all legal moves
+    generateCheckEvasions(board, qMoves);
 } else {
-    // Generate only captures directly - much more efficient!
+    // Generate only captures and promotions
     generateCaptureMoves(board, qMoves);
+    
+    // Add queen promotions even if not captures (they're very strong)
+    generatePromotions(board, qMoves);
+}
+
+// Add these NEW HELPER METHODS to engine.cpp (add after generateKingCaptures method):
+
+void Engine::generateCheckEvasions(const Board& board, std::vector<Move>& evasions) const
+{
+    evasions.clear();
+    
+    Color sideToMove = board.getSideToMove();
+    auto king = (sideToMove == Color::WHITE) ? 
+                board.getPieceAt(Position(0, 4)) : board.getPieceAt(Position(7, 4));
+    
+    // Find the king's actual position
+    Position kingPos;
+    bool foundKing = false;
+    for (int row = 0; row < 8 && !foundKing; row++) {
+        for (int col = 0; col < 8 && !foundKing; col++) {
+            auto piece = board.getPieceAt(Position(row, col));
+            if (piece && piece->getType() == PieceType::KING && piece->getColor() == sideToMove) {
+                kingPos = Position(row, col);
+                foundKing = true;
+            }
+        }
+    }
+    
+    if (!foundKing) return;
+    
+    // 1. Generate king moves (always try to move the king out of check)
+    const std::vector<std::pair<int, int>> kingMoves = {
+        {-1, -1}, {-1, 0}, {-1, 1},
+        {0, -1},           {0, 1},
+        {1, -1},  {1, 0},  {1, 1}
+    };
+    
+    for (const auto& offset : kingMoves) {
+        Position to(kingPos.row + offset.first, kingPos.col + offset.second);
+        if (to.isValid()) {
+            auto target = board.getPieceAt(to);
+            if (!target || target->getColor() != sideToMove) {
+                evasions.emplace_back(kingPos, to);
+            }
+        }
+    }
+    
+    // 2. Try to block or capture the attacking piece
+    // For now, generate all legal moves as fallback (this could be optimized further)
+    auto allMoves = board.generateLegalMoves();
+    for (const auto& move : allMoves) {
+        // Skip king moves (already added above)
+        auto piece = board.getPieceAt(move.from);
+        if (piece && piece->getType() != PieceType::KING) {
+            evasions.push_back(move);
+        }
+    }
+}
+
+void Engine::generatePromotions(const Board& board, std::vector<Move>& promotions) const
+{
+    Color sideToMove = board.getSideToMove();
+    int promotionRank = (sideToMove == Color::WHITE) ? 6 : 1; // 7th rank for promotion
+    
+    for (int col = 0; col < 8; col++) {
+        Position pawnPos(promotionRank, col);
+        auto piece = board.getPieceAt(pawnPos);
+        
+        if (piece && piece->getType() == PieceType::PAWN && piece->getColor() == sideToMove) {
+            int direction = (sideToMove == Color::WHITE) ? 1 : -1;
+            Position to(pawnPos.row + direction, pawnPos.col);
+            
+            // Forward promotion
+            if (to.isValid() && !board.getPieceAt(to)) {
+                promotions.emplace_back(pawnPos, to, PieceType::QUEEN);
+                // Only add queen promotions in quiescence (most important)
+            }
+            
+            // Capture promotions
+            for (int dCol : {-1, 1}) {
+                Position captureTo(pawnPos.row + direction, pawnPos.col + dCol);
+                if (captureTo.isValid()) {
+                    auto target = board.getPieceAt(captureTo);
+                    if (target && target->getColor() != sideToMove) {
+                        promotions.emplace_back(pawnPos, captureTo, PieceType::QUEEN);
+                    }
+                }
+            }
+        }
+    }
 }
 
 if (qMoves.empty())
@@ -1985,8 +2097,8 @@ bool Engine::shouldStopSearch() const
     auto currentTime = std::chrono::high_resolution_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - searchStartTime);
 
-    // Allow some buffer time to avoid timeout
-    int safeTimeLimit = timeAllocated - timeBuffer;
+    int calculatedBuffer = std::max(50, std::min(500, timeAllocated * 5 / 100));
+    int safeTimeLimit = timeAllocated - calculatedBuffer;
 
     return elapsed.count() >= safeTimeLimit;
 }

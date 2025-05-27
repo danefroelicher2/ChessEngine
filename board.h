@@ -96,6 +96,9 @@ private:
     // Check if a castling move is legal
     bool canCastle(const Move& move) const;
 
+    // Add this line to board.h private section:
+bool isValidMovePattern(std::shared_ptr<Piece> piece, const Move& move) const;
+
     // Add these to board.h in the private section:
 bool canPieceAttackSquareAfterMove(std::shared_ptr<Piece> piece, Position piecePos, 
                                   Position target, const Move& simulatedMove) const;
