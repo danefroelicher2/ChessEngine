@@ -121,6 +121,45 @@ void Engine::clearHistoryTable()
     }
 }
 
+// Calculate Late Move Reduction amount
+int Engine::calculateLMRReduction(int depth, int moveIndex, bool foundPV, bool isCapture, 
+                                 bool isCheck, bool isKillerMove) const {
+    // Don't reduce if depth is too shallow
+    if (depth < LMR_MIN_DEPTH) {
+        return 0;
+    }
+    
+    // Don't reduce the first few moves
+    if (moveIndex < LMR_MIN_MOVE_INDEX) {
+        return 0;
+    }
+    
+    // Don't reduce PV moves (this is handled by foundPV parameter)
+    if (!foundPV) {
+        return 0;
+    }
+    
+    // Don't reduce captures, checks, or killer moves
+    if (isCapture || isCheck || isKillerMove) {
+        return 0;
+    }
+    
+    // Calculate base reduction using logarithmic formula
+    // R = base_reduction + log(depth) * log(moveNumber) / constant
+    double logDepth = std::log(static_cast<double>(depth));
+    double logMoveIndex = std::log(static_cast<double>(moveIndex + 1)); // +1 to avoid log(0)
+    
+    double reduction = LMR_BASE_REDUCTION + 
+                      (logDepth * LMR_DEPTH_FACTOR) + 
+                      (logMoveIndex * LMR_MOVE_FACTOR);
+    
+    // Convert to integer and clamp between 1 and 3
+    int intReduction = static_cast<int>(std::round(reduction));
+    intReduction = std::max(1, std::min(3, intReduction));
+    
+    return intReduction;
+}
+
 // Store PV at a specific depth
 void Engine::storePV(int depth, const std::vector<Move> &pv)
 {
