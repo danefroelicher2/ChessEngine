@@ -380,80 +380,46 @@ if (!moveFound) {
     previousState.originalType = piece->getType();
     
 // Handle pawn promotion
-        if (isPawnMove && (move.to.row == 0 || move.to.row == 7) && move.promotion != PieceType::NONE) {
-            previousState.wasPromotion = true;
-            
-            switch (move.promotion) {
-                case PieceType::QUEEN:
-                    piece = std::make_shared<Queen>(sideToMove, move.to);
-                    break;
-                case PieceType::ROOK:
-                    piece = std::make_shared<Rook>(sideToMove, move.to);
-                    break;
-                case PieceType::BISHOP:
-                    piece = std::make_shared<Bishop>(sideToMove, move.to);
-                    break;
-                case PieceType::KNIGHT:
-                    piece = std::make_shared<Knight>(sideToMove, move.to);
-                    break;
-                case PieceType::KING:  // Add this case for completeness
-                    {
-                        auto king = std::make_shared<King>(sideToMove, move.to);
-                        piece = king;
-                        if (sideToMove == Color::WHITE) {
-                            whiteKing = king;
-                        } else {
-                            blackKing = king;
-                        }
-                    }
-                    break;
-                default:
-                    // Default to queen if no promotion specified
-                    piece = std::make_shared<Queen>(sideToMove, move.to);
-                    break;
-            }
-        }
-
-   // Update castling rights if king or rook moves
-    if (piece->getType() == PieceType::KING) {
+if (isPawnMove && (move.to.row == 0 || move.to.row == 7) && move.promotion != PieceType::NONE) {
+    previousState.wasPromotion = true;
+    
+    switch (move.promotion) {
+        case PieceType::QUEEN:
+            piece = std::make_shared<Queen>(sideToMove, move.to);
+            break;
+        case PieceType::ROOK:
+            piece = std::make_shared<Rook>(sideToMove, move.to);
+            break;
+        case PieceType::BISHOP:
+            piece = std::make_shared<Bishop>(sideToMove, move.to);
+            break;
+        case PieceType::KNIGHT:
+            piece = std::make_shared<Knight>(sideToMove, move.to);
+            break;
+        default:
+            // Default to queen if no promotion specified
+            piece = std::make_shared<Queen>(sideToMove, move.to);
+            break;
+    }
+    
+    // Update king pointers if promoting to king (shouldn't happen in normal chess)
+    if (move.promotion == PieceType::KING) {
+        auto king = std::make_shared<King>(sideToMove, move.to);
+        piece = king;
         if (sideToMove == Color::WHITE) {
-            whiteCanCastleKingside = false;
-            whiteCanCastleQueenside = false;
+            whiteKing = king;
         } else {
-            blackCanCastleKingside = false;
-            blackCanCastleQueenside = false;
-        }
-    } else if (piece->getType() == PieceType::ROOK) {
-        if (move.from.row == 0 && move.from.col == 0) {
-            whiteCanCastleQueenside = false;
-        } else if (move.from.row == 0 && move.from.col == 7) {
-            whiteCanCastleKingside = false;
-        } else if (move.from.row == 7 && move.from.col == 0) {
-            blackCanCastleQueenside = false;
-        } else if (move.from.row == 7 && move.from.col == 7) {
-            blackCanCastleKingside = false;
+            blackKing = king;
         }
     }
-    
-    // Update castling rights if a rook is captured
-    if (isCapture) {
-        if (move.to.row == 0 && move.to.col == 0) {
-            whiteCanCastleQueenside = false;
-        } else if (move.to.row == 0 && move.to.col == 7) {
-            whiteCanCastleKingside = false;
-        } else if (move.to.row == 7 && move.to.col == 0) {
-            blackCanCastleQueenside = false;
-        } else if (move.to.row == 7 && move.to.col == 7) {
-            blackCanCastleKingside = false;
-        }
-    }
-    
-    // Make the move
-    setPieceAt(move.from, nullptr);
-    setPieceAt(move.to, piece);
-    
-    // Mark the piece as moved
-    piece->setMoved();
+}
+
+// Make the move (this should come AFTER promotion handling)
+setPieceAt(move.from, nullptr);
+setPieceAt(move.to, piece);
+
+// Mark the piece as moved
+piece->setMoved();
     
     // Update fullmove number
     if (sideToMove == Color::BLACK) {
