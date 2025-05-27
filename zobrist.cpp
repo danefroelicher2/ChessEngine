@@ -83,15 +83,15 @@ uint64_t Zobrist::generateHashKey(const Board& board) {
     return key;
 }
 
-    uint64_t Zobrist::updateHashKey(uint64_t currentKey, const Move& move, const Board& board) {
-    // Add the initialization check that was missing
+uint64_t Zobrist::updateHashKey(uint64_t currentKey, const Move& move, const Board& board) {
     if (!initialized) initialize();
     
     uint64_t newKey = currentKey;
     
-    // Get the piece being moved
+    // Get the piece being moved (BEFORE the move was made - we need the original position)
+    // Note: This assumes the move hasn't been made yet on the board
     auto movingPiece = board.getPieceAt(move.from);
-    if (!movingPiece) return newKey; // Should never happen
+    if (!movingPiece) return newKey;
     
     Color movingColor = movingPiece->getColor();
     int pieceType = static_cast<int>(movingPiece->getType());
@@ -102,24 +102,18 @@ uint64_t Zobrist::generateHashKey(const Board& board) {
     // Remove piece from source square
     newKey ^= pieceKeys[pieceType][colorIndex][fromIndex];
     
-    // Check if this is a capture
+    // Handle captures (including en passant)
     auto capturedPiece = board.getPieceAt(move.to);
     if (capturedPiece) {
         int capturedType = static_cast<int>(capturedPiece->getType());
         int capturedColorIndex = (capturedPiece->getColor() == Color::WHITE) ? 0 : 1;
-        
-        // Remove captured piece from destination
         newKey ^= pieceKeys[capturedType][capturedColorIndex][toIndex];
     }
-    
-    // Special case: en passant capture
-    if (pieceType == static_cast<int>(PieceType::PAWN) && move.to == board.getEnPassantTarget()) {
-        // Remove the captured pawn
+    // Handle en passant capture
+    else if (pieceType == static_cast<int>(PieceType::PAWN) && move.to == board.getEnPassantTarget()) {
         int capturedPawnRow = (movingColor == Color::WHITE) ? move.to.row - 1 : move.to.row + 1;
         int capturedPawnIndex = capturedPawnRow * 8 + move.to.col;
         int opponentColorIndex = 1 - colorIndex;
-        
-        // Remove captured pawn
         newKey ^= pieceKeys[static_cast<int>(PieceType::PAWN)][opponentColorIndex][capturedPawnIndex];
     }
     
@@ -132,11 +126,10 @@ uint64_t Zobrist::generateHashKey(const Board& board) {
         newKey ^= pieceKeys[pieceType][colorIndex][toIndex];
     }
     
-    // Handle castling
+    // Handle castling rook movement
     if (pieceType == static_cast<int>(PieceType::KING)) {
         // Kingside castling
         if (move.from.col == 4 && move.to.col == 6) {
-            // Remove rook from old position
             int rookFromIndex = move.from.row * 8 + 7;
             int rookToIndex = move.from.row * 8 + 5;
             newKey ^= pieceKeys[static_cast<int>(PieceType::ROOK)][colorIndex][rookFromIndex];
@@ -144,7 +137,6 @@ uint64_t Zobrist::generateHashKey(const Board& board) {
         }
         // Queenside castling
         else if (move.from.col == 4 && move.to.col == 2) {
-            // Remove rook from old position
             int rookFromIndex = move.from.row * 8 + 0;
             int rookToIndex = move.from.row * 8 + 3;
             newKey ^= pieceKeys[static_cast<int>(PieceType::ROOK)][colorIndex][rookFromIndex];
@@ -152,19 +144,19 @@ uint64_t Zobrist::generateHashKey(const Board& board) {
         }
     }
     
-    // Update castling rights
+    // Update castling rights (get current state)
     bool oldWhiteKingside = board.getWhiteCanCastleKingside();
     bool oldWhiteQueenside = board.getWhiteCanCastleQueenside();
     bool oldBlackKingside = board.getBlackCanCastleKingside();
     bool oldBlackQueenside = board.getBlackCanCastleQueenside();
     
-    // These are estimates - the actual changes will depend on the board implementation
+    // Calculate new castling rights
     bool newWhiteKingside = oldWhiteKingside;
     bool newWhiteQueenside = oldWhiteQueenside;
     bool newBlackKingside = oldBlackKingside;
     bool newBlackQueenside = oldBlackQueenside;
     
-    // King move loses all castling rights
+    // King moves lose all castling rights for that side
     if (pieceType == static_cast<int>(PieceType::KING)) {
         if (movingColor == Color::WHITE) {
             newWhiteKingside = false;
@@ -175,7 +167,7 @@ uint64_t Zobrist::generateHashKey(const Board& board) {
         }
     }
     
-    // Rook moves or captures
+    // Rook moves lose castling rights for that side
     if (pieceType == static_cast<int>(PieceType::ROOK)) {
         if (movingColor == Color::WHITE) {
             if (move.from.row == 0 && move.from.col == 0) newWhiteQueenside = false;
@@ -186,7 +178,7 @@ uint64_t Zobrist::generateHashKey(const Board& board) {
         }
     }
     
-    // Rook capture
+    // Rook captures lose castling rights
     if (capturedPiece && capturedPiece->getType() == PieceType::ROOK) {
         if (move.to.row == 0 && move.to.col == 0) newWhiteQueenside = false;
         if (move.to.row == 0 && move.to.col == 7) newWhiteKingside = false;
@@ -194,22 +186,21 @@ uint64_t Zobrist::generateHashKey(const Board& board) {
         if (move.to.row == 7 && move.to.col == 7) newBlackKingside = false;
     }
     
-    // Update the hash for changed castling rights
+    // Update hash for changed castling rights
     if (oldWhiteKingside != newWhiteKingside) newKey ^= castlingKeys[0];
     if (oldWhiteQueenside != newWhiteQueenside) newKey ^= castlingKeys[1];
     if (oldBlackKingside != newBlackKingside) newKey ^= castlingKeys[2];
     if (oldBlackQueenside != newBlackQueenside) newKey ^= castlingKeys[3];
     
-    // Handle en passant changes
+    // Handle en passant target changes
     Position oldEnPassant = board.getEnPassantTarget();
     if (oldEnPassant.isValid()) {
         newKey ^= enPassantKeys[oldEnPassant.col];
     }
     
-    // If this is a double pawn push, add new en passant target
+    // Set new en passant target for double pawn pushes
     if (pieceType == static_cast<int>(PieceType::PAWN) && abs(move.to.row - move.from.row) == 2) {
-        int enPassantFile = move.from.col;
-        newKey ^= enPassantKeys[enPassantFile];
+        newKey ^= enPassantKeys[move.from.col];
     }
     
     // Toggle side to move
