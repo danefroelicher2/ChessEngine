@@ -321,7 +321,7 @@ Move Engine::iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashK
         std::cout << ", PV: " << getPVString() << std::endl;
 
        // Time management check - decide whether to continue to next depth
-        if (timeManaged && timeAllocated > 0) {
+       if (timeManaged && timeAllocated > 0) {
             int timeUsed = duration.count();
 
             // Calculate adjusted time allocation based on position stability
@@ -351,9 +351,7 @@ Move Engine::iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashK
                     break;
                 }
             }
-        }
-        // Check if we should start next iteration
-        int timeUsed = duration.count();
+       }
 
         // Calculate adjusted time allocation based on position stability
         int adjustedTimeAllocation = timeAllocated;
