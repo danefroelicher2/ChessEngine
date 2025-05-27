@@ -985,15 +985,13 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
         return score; // Return cached result if available (but don't use TT at root)
     }
 
-    // Check for search termination conditions
-   // Maximum recursion depth check for quiescence
-if (ply >= MAX_QSEARCH_DEPTH)
-    return evaluatePosition(board);
+// Check for search termination conditions
+    if (ply >= MAX_PLY) {
+        return evaluatePosition(board);
     }
 
     // If we've reached the maximum depth, use quiescence search
-    if (depth <= 0)
-    {
+    if (depth <= 0) {
         return quiescenceSearch(board, alpha, beta, hashKey, ply);
     }
 
