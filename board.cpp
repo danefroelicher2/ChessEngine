@@ -266,6 +266,10 @@ void Board::setPieceAt(const Position &pos, std::shared_ptr<Piece> piece)
 }
 
 bool Board::makeMove(const Move &move, BoardState &previousState)
+bool Board::makeMove(const Move& move) {
+    BoardState dummy; // We don't need to save state for the public interface
+    return makeMove(move, dummy);
+}
 {
     previousState.sideToMove = sideToMove;
     previousState.whiteCanCastleKingside = whiteCanCastleKingside;
@@ -288,17 +292,20 @@ bool Board::makeMove(const Move &move, BoardState &previousState)
     if (piece->getColor() != sideToMove)
         return false;
 
-    // Verify the move is legal
-     auto legalMoves = piece->getLegalMoves(*this);
-    if (std::find_if(legalMoves.begin(), legalMoves.end(), 
-                    [&move](const Move& m) { 
-                        return m.from.row == move.from.row && 
-                               m.from.col == move.from.col && 
-                               m.to.row == move.to.row && 
-                               m.to.col == move.to.col; 
-                    }) == legalMoves.end()) {
-        return false;
+// Basic validation - check if piece can potentially make this move
+auto potentialMoves = piece->getLegalMoves(*this);
+bool moveFound = false;
+for (const auto& m : potentialMoves) {
+    if (m.from.row == move.from.row && m.from.col == move.from.col && 
+        m.to.row == move.to.row && m.to.col == move.to.col &&
+        m.promotion == move.promotion) {
+        moveFound = true;
+        break;
     }
+}
+if (!moveFound) {
+    return false;
+}
 
     // Check if the move would leave the king in check
     if (wouldBeInCheck(move, sideToMove))
