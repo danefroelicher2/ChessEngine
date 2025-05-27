@@ -460,21 +460,33 @@ int Engine::getDepthAdjustment(const Move &move, const Board &board, bool isPVMo
 }
 
 // Static Exchange Evaluation (SEE)
-int Engine::seeCapture(const Board &board, const Move &move) const
-{
+int Engine::seeCapture(const Board& board, const Move& move) const {
     auto capturedPiece = board.getPieceAt(move.to);
-    if (!capturedPiece)
+    if (!capturedPiece) {
+        // Check for en passant
+        auto movingPiece = board.getPieceAt(move.from);
+        if (movingPiece && movingPiece->getType() == PieceType::PAWN && 
+            move.to == board.getEnPassantTarget()) {
+            return PAWN_VALUE; // En passant captures a pawn
+        }
         return 0; // Not a capture
+    }
 
     auto movingPiece = board.getPieceAt(move.from);
-    if (!movingPiece)
-        return 0; // Should never happen
+    if (!movingPiece) return 0;
 
-    // Get the value of the captured piece
+    // Create a temporary board with the capture made
+    Board tempBoard = board;
+    tempBoard.setPieceAt(move.from, nullptr);
+    tempBoard.setPieceAt(move.to, movingPiece);
+
     int captureValue = getPieceValue(capturedPiece->getType());
-
-    // Make the capture and see what happens
-    return captureValue - see(board, move.to, movingPiece->getColor(), getPieceValue(movingPiece->getType()));
+    int attackerValue = getPieceValue(movingPiece->getType());
+    
+    // Calculate what happens if the opponent recaptures
+    int opponentResponse = see(tempBoard, move.to, movingPiece->getColor(), attackerValue);
+    
+    return captureValue - opponentResponse;
 }
 
 // Static Exchange Evaluation - simulates a sequence of captures on a square
