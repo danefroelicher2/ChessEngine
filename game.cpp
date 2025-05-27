@@ -98,17 +98,19 @@ bool Game::makeMove(const std::string& moveStr) {
 }
 
 bool Game::undoMove() {
-    if (moveHistory.empty()) {
+    if (moveHistory.empty() || fenHistory.size() < 2) {
         return false;
     }
     
-    // Remove the last move from the history
-    moveHistory.pop_back();
+    // Get the last move that was made
+    Move lastMove = moveHistory.back();
     
-    // Remove the last position from the FEN history
+    // Remove the last move from history
+    moveHistory.pop_back();
     fenHistory.pop_back();
     
-    // Restore the board to the previous position
+    // Restore the board to the previous position using FEN
+    // (This is simpler for the game interface, engine uses different method)
     board.setupFromFEN(fenHistory.back());
     
     // Reset the game result
