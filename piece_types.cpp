@@ -1,33 +1,45 @@
 #include "piece_types.h"
 #include "board.h"
 
-// Pawn movement logic
+// Pawn::getLegalMoves() 
 std::vector<Move> Pawn::getLegalMoves(const Board& board) const {
     std::vector<Move> moves;
     int direction = (color == Color::WHITE) ? 1 : -1;
     Position front(position.row + direction, position.col);
     
-   // Forward move (1 square)
-if (front.isValid() && !board.getPieceAt(front)) {
-    // Check for promotion
-    if (front.row == 0 || front.row == 7) {
-        moves.emplace_back(position, front, PieceType::QUEEN);
-        moves.emplace_back(position, front, PieceType::ROOK);
-        moves.emplace_back(position, front, PieceType::BISHOP);
-        moves.emplace_back(position, front, PieceType::KNIGHT);
-    } else {
-        moves.emplace_back(position, front);
-    }
+    // Helper function to add promotion moves correctly
+    auto addPromotionMoves = [&](Position from, Position to) {
+        // ENHANCED: Validate promotion is only on correct ranks
+        bool isPromotionRank = (color == Color::WHITE && to.row == 7) || 
+                              (color == Color::BLACK && to.row == 0);
+        
+        if (isPromotionRank) {
+            // Add all four promotion options
+            moves.emplace_back(from, to, PieceType::QUEEN);
+            moves.emplace_back(from, to, PieceType::ROOK);
+            moves.emplace_back(from, to, PieceType::BISHOP);
+            moves.emplace_back(from, to, PieceType::KNIGHT);
+        } else {
+            // Regular move (no promotion)
+            moves.emplace_back(from, to);
+        }
+    };
     
-    // Forward move (2 squares) if pawn is on starting row
-    if ((color == Color::WHITE && position.row == 1) || 
-        (color == Color::BLACK && position.row == 6)) {
-        Position doubleFront(position.row + 2 * direction, position.col);
-        if (doubleFront.isValid() && !board.getPieceAt(doubleFront)) {
-            moves.emplace_back(position, doubleFront);
+    // Forward move (1 square)
+    if (front.isValid() && !board.getPieceAt(front)) {
+        addPromotionMoves(position, front);
+        
+        // Forward move (2 squares) if pawn is on starting row
+        bool isStartingRank = (color == Color::WHITE && position.row == 1) || 
+                             (color == Color::BLACK && position.row == 6);
+        
+        if (isStartingRank) {
+            Position doubleFront(position.row + 2 * direction, position.col);
+            if (doubleFront.isValid() && !board.getPieceAt(doubleFront)) {
+                moves.emplace_back(position, doubleFront); // No promotion on double move
+            }
         }
     }
-}
     
     // Capture moves (including en passant)
     for (int dCol : {-1, 1}) {
@@ -38,19 +50,20 @@ if (front.isValid() && !board.getPieceAt(front)) {
             
             // Regular capture
             if (pieceAtCapture && pieceAtCapture->getColor() != color) {
-                // Check for promotion
-                if (capturePos.row == 0 || capturePos.row == 7) {
-                    moves.emplace_back(position, capturePos, PieceType::QUEEN);
-                    moves.emplace_back(position, capturePos, PieceType::ROOK);
-                    moves.emplace_back(position, capturePos, PieceType::BISHOP);
-                    moves.emplace_back(position, capturePos, PieceType::KNIGHT);
-                } else {
+                addPromotionMoves(position, capturePos);
+            }
+            // En passant capture - ENHANCED validation
+            else if (capturePos == board.getEnPassantTarget()) {
+                // Validate en passant conditions more thoroughly
+                int capturedPawnRow = (color == Color::WHITE) ? capturePos.row - 1 : capturePos.row + 1;
+                auto capturedPawn = board.getPieceAt(Position(capturedPawnRow, capturePos.col));
+                
+                if (capturedPawn && 
+                    capturedPawn->getType() == PieceType::PAWN && 
+                    capturedPawn->getColor() != color) {
+                    // En passant is valid (never results in promotion)
                     moves.emplace_back(position, capturePos);
                 }
-            }
-            // En passant capture
-            else if (capturePos == board.getEnPassantTarget()) {
-                moves.emplace_back(position, capturePos);
             }
         }
     }

@@ -54,6 +54,19 @@ bool unmakeMove(const Move& move, const BoardState& previousState);
     
     // Check if the game is in stalemate
     bool isStalemate() const;
+
+    // Add to board.h public section:
+bool isGameOver() const;
+
+// Add this enum before the Board class declaration in board.h:
+enum class GameEndType {
+    NOT_ENDED,
+    CHECKMATE,
+    STALEMATE
+};
+
+// Add this method declaration in the public section:
+GameEndType getGameEndType() const;
     
     // Get the side to move
     Color getSideToMove() const { return sideToMove; }

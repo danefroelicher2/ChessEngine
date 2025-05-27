@@ -344,15 +344,43 @@ if (!moveFound) {
     bool isCapture = getPieceAt(move.to) != nullptr;
     bool isPawnMove = piece->getType() == PieceType::PAWN;
 
-    // Handle en passant capture
-   if (isPawnMove && move.to == enPassantTarget) {
-        // Remove the captured pawn
-        int capturedPawnRow = (sideToMove == Color::WHITE) ? move.to.row - 1 : move.to.row + 1;
-        previousState.capturedPiece = getPieceAt(Position(capturedPawnRow, move.to.col));
-        setPieceAt(Position(capturedPawnRow, move.to.col), nullptr);
-        isCapture = true;
-        previousState.wasEnPassant = true;
+   // REPLACE the en passant capture section in makeMove() with this:
+// Handle en passant capture with proper validation
+if (isPawnMove && move.to == enPassantTarget && enPassantTarget.isValid()) {
+    // Validate that there's actually a pawn to capture
+    int capturedPawnRow = (sideToMove == Color::WHITE) ? move.to.row - 1 : move.to.row + 1;
+    Position capturedPawnPos(capturedPawnRow, move.to.col);
+    
+    auto capturedPawn = getPieceAt(capturedPawnPos);
+    
+    // COMPREHENSIVE en passant validation
+    if (capturedPawn && 
+        capturedPawn->getType() == PieceType::PAWN && 
+        capturedPawn->getColor() != sideToMove) {
+        
+        // Additional validation: The captured pawn should be on the correct rank
+        bool validRank = false;
+        if (sideToMove == Color::WHITE && capturedPawnRow == 4) {
+            validRank = true; // White capturing black pawn on 5th rank
+        } else if (sideToMove == Color::BLACK && capturedPawnRow == 3) {
+            validRank = true; // Black capturing white pawn on 4th rank
+        }
+        
+        if (validRank) {
+            // Valid en passant capture
+            previousState.capturedPiece = capturedPawn;
+            setPieceAt(capturedPawnPos, nullptr);
+            isCapture = true;
+            previousState.wasEnPassant = true;
+        } else {
+            // Invalid en passant - this shouldn't happen with correct move generation
+            return false;
+        }
+    } else {
+        // No valid pawn to capture - invalid en passant
+        return false;
     }
+}
 
    // Update en passant target square
     if (isPawnMove && abs(move.to.row - move.from.row) == 2) {
@@ -377,38 +405,55 @@ if (!moveFound) {
 auto originalPiece = getPieceAt(move.from);
 PieceType originalPieceType = originalPiece->getType();
 
-// Handle pawn promotion
+// Handle pawn promotion with proper memory management
 if (isPawnMove && (move.to.row == 0 || move.to.row == 7) && move.promotion != PieceType::NONE) {
     previousState.wasPromotion = true;
     
-    switch (move.promotion) {
-        case PieceType::QUEEN:
-            piece = std::make_shared<Queen>(sideToMove, move.to);
-            break;
-        case PieceType::ROOK:
-            piece = std::make_shared<Rook>(sideToMove, move.to);
-            break;
-        case PieceType::BISHOP:
-            piece = std::make_shared<Bishop>(sideToMove, move.to);
-            break;
-        case PieceType::KNIGHT:
-            piece = std::make_shared<Knight>(sideToMove, move.to);
-            break;
-        default:
-            // Default to queen if no promotion specified
-            piece = std::make_shared<Queen>(sideToMove, move.to);
-            break;
-    }
+    // Clear the old piece reference before creating new one
+    std::shared_ptr<Piece> newPiece = nullptr;
     
-    // Update king pointers if promoting to king (shouldn't happen in normal chess)
-    if (move.promotion == PieceType::KING) {
-        auto king = std::make_shared<King>(sideToMove, move.to);
-        piece = king;
-        if (sideToMove == Color::WHITE) {
-            whiteKing = king;
-        } else {
-            blackKing = king;
+    try {
+        switch (move.promotion) {
+            case PieceType::QUEEN:
+                newPiece = std::make_shared<Queen>(sideToMove, move.to);
+                break;
+            case PieceType::ROOK:
+                newPiece = std::make_shared<Rook>(sideToMove, move.to);
+                break;
+            case PieceType::BISHOP:
+                newPiece = std::make_shared<Bishop>(sideToMove, move.to);
+                break;
+            case PieceType::KNIGHT:
+                newPiece = std::make_shared<Knight>(sideToMove, move.to);
+                break;
+            default:
+                // Validate promotion piece type
+                newPiece = std::make_shared<Queen>(sideToMove, move.to);
+                break;
         }
+        
+        // Only assign if creation was successful
+        if (newPiece) {
+            piece = newPiece;
+            
+            // Update king pointers if promoting to king (should never happen in normal chess)
+            if (move.promotion == PieceType::KING) {
+                auto king = std::dynamic_pointer_cast<King>(piece);
+                if (king) {
+                    if (sideToMove == Color::WHITE) {
+                        whiteKing = king;
+                    } else {
+                        blackKing = king;
+                    }
+                }
+            }
+        } else {
+            // Fallback: keep original piece if promotion failed
+            return false;
+        }
+    } catch (const std::exception& e) {
+        // Handle memory allocation failure gracefully
+        return false;
     }
 }
 
@@ -586,20 +631,67 @@ bool Board::isInCheck() const
     return isSquareAttacked(king->getPosition(), (sideToMove == Color::WHITE) ? Color::BLACK : Color::WHITE);
 }
 
+// REPLACE both isCheckmate() and isStalemate() methods in board.cpp with these:
+
 bool Board::isCheckmate() const
 {
-    if (!isInCheck())
+    // OPTIMIZED: Check for check first (faster than generating moves)
+    bool inCheck = isInCheck();
+    if (!inCheck) {
         return false;
+    }
 
-    return generateLegalMoves().empty();
+    // Only generate legal moves if we're in check
+    auto legalMoves = generateLegalMoves();
+    return legalMoves.empty();
 }
 
 bool Board::isStalemate() const
 {
-    if (isInCheck())
-        return false;
+    // OPTIMIZED: Check for check first (faster than generating moves)
+    bool inCheck = isInCheck();
+    if (inCheck) {
+        return false; // Can't be stalemate if in check
+    }
 
-    return generateLegalMoves().empty();
+    // Only generate legal moves if we're NOT in check
+    auto legalMoves = generateLegalMoves();
+    return legalMoves.empty();
+}
+
+// BONUS: Add this helper method for better game state detection
+bool Board::isGameOver() const
+{
+    // Early exit optimizations
+    bool inCheck = isInCheck();
+    auto legalMoves = generateLegalMoves();
+    
+    // No legal moves available
+    if (legalMoves.empty()) {
+        return true; // Either checkmate or stalemate
+    }
+    
+    // Game continues if there are legal moves
+    return false;
+}
+
+// BONUS: Add this method to distinguish game end reasons efficiently
+enum class GameEndType {
+    NOT_ENDED,
+    CHECKMATE,
+    STALEMATE
+};
+
+GameEndType Board::getGameEndType() const
+{
+    bool inCheck = isInCheck();
+    auto legalMoves = generateLegalMoves();
+    
+    if (legalMoves.empty()) {
+        return inCheck ? GameEndType::CHECKMATE : GameEndType::STALEMATE;
+    }
+    
+    return GameEndType::NOT_ENDED;
 }
 
 bool Board::isSquareAttacked(const Position &pos, Color attackerColor) const
@@ -683,94 +775,130 @@ void Board::clear()
     fullMoveNumber = 1;
 }
 
+// REPLACE the entire canCastle() method in board.cpp with this:
 bool Board::canCastle(const Move &move) const
 {
     // Check if the piece is a king
     auto piece = getPieceAt(move.from);
-    if (!piece || piece->getType() != PieceType::KING || piece->getHasMoved())
+    if (!piece || piece->getType() != PieceType::KING)
     {
         return false;
     }
-
-    // Check if the king is in check
+    
+    Color kingColor = piece->getColor();
+    
+    // COMPREHENSIVE castling validation
+    
+    // 1. King must not have moved
+    if (piece->getHasMoved())
+    {
+        return false;
+    }
+    
+    // 2. King must not be in check
     if (isInCheck())
     {
         return false;
     }
-
-    // Kingside castling
-    if (move.to.col == move.from.col + 2)
+    
+    // 3. King must be on correct starting square
+    int expectedRow = (kingColor == Color::WHITE) ? 0 : 7;
+    if (move.from.row != expectedRow || move.from.col != 4)
     {
-        // Check if the king has castling rights
-        if (piece->getColor() == Color::WHITE && !whiteCanCastleKingside)
+        return false;
+    }
+
+    // 4. Validate castling direction and rights
+    if (move.to.col == move.from.col + 2) // Kingside castling
+    {
+        // Check castling rights
+        if (kingColor == Color::WHITE && !whiteCanCastleKingside)
         {
             return false;
         }
-        if (piece->getColor() == Color::BLACK && !blackCanCastleKingside)
+        if (kingColor == Color::BLACK && !blackCanCastleKingside)
         {
             return false;
         }
 
-        // Check if the rook is there and hasn't moved
-        auto rook = getPieceAt(Position(move.from.row, 7));
-        if (!rook || rook->getType() != PieceType::ROOK || rook->getHasMoved())
+        // ENHANCED: Check if the rook is there, is correct type/color, and hasn't moved
+        Position rookPos(expectedRow, 7);
+        auto rook = getPieceAt(rookPos);
+        if (!rook || 
+            rook->getType() != PieceType::ROOK || 
+            rook->getColor() != kingColor ||
+            rook->getHasMoved())
         {
             return false;
         }
 
-        // Check if the squares between the king and the rook are empty
-        if (getPieceAt(Position(move.from.row, 5)) || getPieceAt(Position(move.from.row, 6)))
+        // Check if squares between king and rook are empty
+        for (int col = 5; col <= 6; col++)
         {
-            return false;
+            if (getPieceAt(Position(expectedRow, col)))
+            {
+                return false;
+            }
         }
 
-        // Check if the king would move through or end up in check
-        if (isSquareAttacked(Position(move.from.row, 5), (piece->getColor() == Color::WHITE) ? Color::BLACK : Color::WHITE) ||
-            isSquareAttacked(Position(move.from.row, 6), (piece->getColor() == Color::WHITE) ? Color::BLACK : Color::WHITE))
+        // Check if king would move through or end up in check
+        Color opponentColor = (kingColor == Color::WHITE) ? Color::BLACK : Color::WHITE;
+        for (int col = 5; col <= 6; col++)
         {
-            return false;
+            if (isSquareAttacked(Position(expectedRow, col), opponentColor))
+            {
+                return false;
+            }
         }
 
         return true;
     }
-    // Queenside castling
-    else if (move.to.col == move.from.col - 2)
+    else if (move.to.col == move.from.col - 2) // Queenside castling
     {
-        // Check if the king has castling rights
-        if (piece->getColor() == Color::WHITE && !whiteCanCastleQueenside)
+        // Check castling rights
+        if (kingColor == Color::WHITE && !whiteCanCastleQueenside)
         {
             return false;
         }
-        if (piece->getColor() == Color::BLACK && !blackCanCastleQueenside)
-        {
-            return false;
-        }
-
-        // Check if the rook is there and hasn't moved
-        auto rook = getPieceAt(Position(move.from.row, 0));
-        if (!rook || rook->getType() != PieceType::ROOK || rook->getHasMoved())
+        if (kingColor == Color::BLACK && !blackCanCastleQueenside)
         {
             return false;
         }
 
-        // Check if the squares between the king and the rook are empty
-        if (getPieceAt(Position(move.from.row, 1)) ||
-            getPieceAt(Position(move.from.row, 2)) ||
-            getPieceAt(Position(move.from.row, 3)))
+        // ENHANCED: Check if the rook is there, is correct type/color, and hasn't moved
+        Position rookPos(expectedRow, 0);
+        auto rook = getPieceAt(rookPos);
+        if (!rook || 
+            rook->getType() != PieceType::ROOK || 
+            rook->getColor() != kingColor ||
+            rook->getHasMoved())
         {
             return false;
         }
 
-        // Check if the king would move through or end up in check
-        if (isSquareAttacked(Position(move.from.row, 3), (piece->getColor() == Color::WHITE) ? Color::BLACK : Color::WHITE) ||
-            isSquareAttacked(Position(move.from.row, 2), (piece->getColor() == Color::WHITE) ? Color::BLACK : Color::WHITE))
+        // Check if squares between king and rook are empty (including b-file for queenside)
+        for (int col = 1; col <= 3; col++)
         {
-            return false;
+            if (getPieceAt(Position(expectedRow, col)))
+            {
+                return false;
+            }
+        }
+
+        // Check if king would move through or end up in check (not including b-file)
+        Color opponentColor = (kingColor == Color::WHITE) ? Color::BLACK : Color::WHITE;
+        for (int col = 2; col <= 3; col++)
+        {
+            if (isSquareAttacked(Position(expectedRow, col), opponentColor))
+            {
+                return false;
+            }
         }
 
         return true;
     }
 
+    // Invalid castling move
     return false;
 }
 

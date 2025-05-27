@@ -791,11 +791,18 @@ int Engine::getMVVLVAScore(PieceType attacker, PieceType victim) const
     return mvvLvaScores[static_cast<int>(attacker)][static_cast<int>(victim)];
 }
 
-// Store a killer move
+// REPLACE the entire storeKillerMove() method with this:
 void Engine::storeKillerMove(const Move &move, int ply)
 {
-    if (ply >= MAX_PLY)
+    // COMPREHENSIVE bounds checking
+    if (ply < 0 || ply >= MAX_PLY) {
         return;
+    }
+    
+    // Additional safety check for move validity
+    if (!move.from.isValid() || !move.to.isValid()) {
+        return;
+    }
 
     // Don't store if it's already the first killer move
     if (killerMoves[ply][0].from.row == move.from.row &&
@@ -811,11 +818,18 @@ void Engine::storeKillerMove(const Move &move, int ply)
     killerMoves[ply][0] = move;
 }
 
-// Check if a move is a killer move at the current ply
+// REPLACE the entire isKillerMove() method with this:
 bool Engine::isKillerMove(const Move &move, int ply) const
 {
-    if (ply >= MAX_PLY)
+    // COMPREHENSIVE bounds checking
+    if (ply < 0 || ply >= MAX_PLY) {
         return false;
+    }
+    
+    // Additional safety check for move validity
+    if (!move.from.isValid() || !move.to.isValid()) {
+        return false;
+    }
 
     return (killerMoves[ply][0].from.row == move.from.row &&
             killerMoves[ply][0].from.col == move.from.col &&
@@ -826,7 +840,6 @@ bool Engine::isKillerMove(const Move &move, int ply) const
             killerMoves[ply][1].to.row == move.to.row &&
             killerMoves[ply][1].to.col == move.to.col);
 }
-
 // REPLACE the entire storeCounterMove() method with this fixed version:
 void Engine::storeCounterMove(const Move &lastMove, const Move &counterMove)
 {

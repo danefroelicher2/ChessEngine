@@ -22,21 +22,63 @@ void TranspositionTable::resize(int sizeMB) {
     clear();
 }
 
-void TranspositionTable::store(uint64_t key, int depth, int score, NodeType type, const Move& bestMove) {
+// REPLACE the entire store() method in transposition.cpp with this:
+void TranspositionTable::store(uint64_t key, int depth, int score, NodeType type, const Move& bestMove) 
+{
     size_t idx = index(key);
     TTEntry& entry = table[idx];
     
-    // Replacement strategy: 
-    // 1. Always replace if the new entry has a deeper search
-    // 2. Always replace if the current entry is from an older age
-    // 3. Otherwise, keep the existing entry
+    // IMPROVED replacement strategy with multiple factors
     
-    if (entry.key == 0 || // Empty slot
-        depth >= entry.depth || // Deeper search
-        currentAge != entry.age) { // Older entry
-        
+    // 1. Always replace empty slots
+    if (entry.key == 0) {
+        entry = TTEntry(key, depth, score, type, bestMove, currentAge);
+        return;
+    }
+    
+    // 2. Always replace if same position (update with new info)
+    if (entry.key == key) {
+        // Only replace if new search is deeper or same depth with newer age
+        if (depth >= entry.depth || currentAge > entry.age) {
+            entry = TTEntry(key, depth, score, type, bestMove, currentAge);
+        }
+        return;
+    }
+    
+    // 3. Complex replacement decision for different positions
+    // Calculate replacement scores for old and new entries
+    int oldScore = calculateReplacementScore(entry, currentAge);
+    int newScore = calculateReplacementScore(TTEntry(key, depth, score, type, bestMove, currentAge), currentAge);
+    
+    // Replace if new entry scores higher
+    if (newScore > oldScore) {
         entry = TTEntry(key, depth, score, type, bestMove, currentAge);
     }
+}
+
+// ADD this helper method to transposition.cpp:
+int TranspositionTable::calculateReplacementScore(const TTEntry& entry, int currentAge) const
+{
+    int score = 0;
+    
+    // Bonus for depth (deeper searches are more valuable)
+    score += entry.depth * 100;
+    
+    // Penalty for age (older entries are less valuable)
+    int ageDiff = currentAge - entry.age;
+    score -= ageDiff * 50;
+    
+    // Bonus for exact scores (more valuable than bounds)
+    if (entry.type == NodeType::EXACT) {
+        score += 200;
+    }
+    
+    // Bonus for having a best move
+    if (entry.bestMove.from.isValid() && entry.bestMove.to.isValid()) {
+        score += 150;
+    }
+    
+    return score;
 }
 
 bool TranspositionTable::probe(uint64_t key, int depth, int alpha, int beta, int& score, Move& bestMove) {
