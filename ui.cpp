@@ -303,6 +303,21 @@ bool UI::processCommand(const std::string &command)
     else if (command == "perft")
     {
         runPerftTests();
+        } else if (command.substr(0, 5) == "time ") {
+    try {
+        int timeMs = std::stoi(command.substr(5));
+        if (timeMs > 0) {
+            engine.setTimeForMove(timeMs);
+            std::cout << "Time per move set to " << timeMs << " milliseconds" << std::endl;
+        } else {
+            std::cout << "Invalid time!" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "Invalid time!" << std::endl;
+    }
+} else if (command == "time off") {
+    engine.setTimeManagement(false);
+    std::cout << "Time management disabled" << std::endl;
     }
     else if (command.substr(0, 6) == "perft ")
     {
