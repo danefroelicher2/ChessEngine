@@ -18,6 +18,18 @@ std::vector<Move> Pawn::getLegalMoves(const Board& board) const {
         } else {
             moves.emplace_back(position, front);
         }
+
+        if (front.isValid() && !board.getPieceAt(front)) {
+    // Check for promotion
+    if (front.row == 0 || front.row == 7) {
+        // Always add all promotion options for completeness
+        moves.emplace_back(position, front, PieceType::QUEEN);
+        moves.emplace_back(position, front, PieceType::ROOK);
+        moves.emplace_back(position, front, PieceType::BISHOP);
+        moves.emplace_back(position, front, PieceType::KNIGHT);
+    } else {
+        moves.emplace_back(position, front);
+    }
         
         // Forward move (2 squares) if pawn is on starting row
         if ((color == Color::WHITE && position.row == 1) || 

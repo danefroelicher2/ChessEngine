@@ -401,6 +401,52 @@ if (isPawnMove && (move.to.row == 0 || move.to.row == 7) && move.promotion != Pi
             piece = std::make_shared<Queen>(sideToMove, move.to);
             break;
     }
+
+    // Update castling rights based on piece movement
+if (piece->getType() == PieceType::KING) {
+    if (sideToMove == Color::WHITE) {
+        whiteCanCastleKingside = false;
+        whiteCanCastleQueenside = false;
+    } else {
+        blackCanCastleKingside = false;
+        blackCanCastleQueenside = false;
+    }
+}
+
+// Update castling rights if rook moves
+if (piece->getType() == PieceType::ROOK) {
+    if (sideToMove == Color::WHITE) {
+        if (move.from.row == 0 && move.from.col == 0) {
+            whiteCanCastleQueenside = false;
+        }
+        if (move.from.row == 0 && move.from.col == 7) {
+            whiteCanCastleKingside = false;
+        }
+    } else {
+        if (move.from.row == 7 && move.from.col == 0) {
+            blackCanCastleQueenside = false;
+        }
+        if (move.from.row == 7 && move.from.col == 7) {
+            blackCanCastleKingside = false;
+        }
+    }
+}
+
+// Update castling rights if rook is captured
+if (previousState.capturedPiece && previousState.capturedPiece->getType() == PieceType::ROOK) {
+    if (move.to.row == 0 && move.to.col == 0) {
+        whiteCanCastleQueenside = false;
+    }
+    if (move.to.row == 0 && move.to.col == 7) {
+        whiteCanCastleKingside = false;
+    }
+    if (move.to.row == 7 && move.to.col == 0) {
+        blackCanCastleQueenside = false;
+    }
+    if (move.to.row == 7 && move.to.col == 7) {
+        blackCanCastleKingside = false;
+    }
+}
     
     // Update king pointers if promoting to king (shouldn't happen in normal chess)
     if (move.promotion == PieceType::KING) {

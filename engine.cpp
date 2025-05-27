@@ -122,40 +122,45 @@ void Engine::clearHistoryTable()
 }
 
 // Fixed LMR reduction calculation
-int Engine::calculateLMRReduction(int depth, int moveIndex, bool foundPV, bool isCapture, 
-                                 bool isCheck, bool isKillerMove) const {
+int Engine::calculateLMRReduction(int depth, int moveIndex, bool foundPV, bool isCapture,
+                                  bool isCheck, bool isKillerMove) const
+{
     // Don't reduce if depth is too shallow
-    if (depth < LMR_MIN_DEPTH) {
+    if (depth < LMR_MIN_DEPTH)
+    {
         return 0;
     }
-    
+
     // Don't reduce the first few moves
-    if (moveIndex < LMR_MIN_MOVE_INDEX) {
+    if (moveIndex < LMR_MIN_MOVE_INDEX)
+    {
         return 0;
     }
-    
+
     // Don't reduce the PV move (first move when foundPV is false)
-    if (!foundPV) {
-        return 0;  // This is the PV move, don't reduce
+    if (!foundPV)
+    {
+        return 0; // This is the PV move, don't reduce
     }
-    
+
     // Don't reduce captures, checks, or killer moves
-    if (isCapture || isCheck || isKillerMove) {
+    if (isCapture || isCheck || isKillerMove)
+    {
         return 0;
     }
-    
+
     // Calculate base reduction using logarithmic formula
     double logDepth = std::log(static_cast<double>(depth));
     double logMoveIndex = std::log(static_cast<double>(moveIndex + 1));
-    
-    double reduction = LMR_BASE_REDUCTION + 
-                      (logDepth * LMR_DEPTH_FACTOR) + 
-                      (logMoveIndex * LMR_MOVE_FACTOR);
-    
+
+    double reduction = LMR_BASE_REDUCTION +
+                       (logDepth * LMR_DEPTH_FACTOR) +
+                       (logMoveIndex * LMR_MOVE_FACTOR);
+
     // Convert to integer and clamp between 1 and 3
     int intReduction = static_cast<int>(std::round(reduction));
     intReduction = std::max(1, std::min(3, intReduction));
-    
+
     return intReduction;
 }
 
@@ -356,37 +361,42 @@ Move Engine::iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashK
             std::cout << ", NPS: " << static_cast<long>(nodesSearched * 1000.0 / duration.count());
         }
 
-       // REPLACE the time management section in iterativeDeepeningSearch() with this:
+        // REPLACE the time management section in iterativeDeepeningSearch() with this:
 
         std::cout << ", PV: " << getPVString() << std::endl;
 
         // Time management check - decide whether to continue to next depth
-        if (timeManaged && timeAllocated > 0) {
+        if (timeManaged && timeAllocated > 0)
+        {
             int timeUsed = duration.count();
 
             // Calculate adjusted time allocation based on position stability
             int adjustedTimeAllocation = timeAllocated;
-            if (positionIsUnstable) {
+            if (positionIsUnstable)
+            {
                 adjustedTimeAllocation += (timeAllocated * unstableExtensionPercent) / 100;
                 std::cout << "Extending time allocation to " << adjustedTimeAllocation
                           << "ms due to position instability" << std::endl;
             }
 
             // Stop if we've used most of our time
-            if (timeUsed >= adjustedTimeAllocation - timeBuffer) {
+            if (timeUsed >= adjustedTimeAllocation - timeBuffer)
+            {
                 std::cout << "Stopping search due to time limit. Time used: "
                           << timeUsed << "ms" << std::endl;
                 break;
             }
 
             // Estimate time for next iteration: typically 4-5x more nodes required
-            if (nodesThisIteration > 0 && depth > 1) {
+            if (nodesThisIteration > 0 && depth > 1)
+            {
                 double branchingFactor = 4.5; // Conservative estimate
                 long estimatedNodesNext = static_cast<long>(nodesThisIteration * branchingFactor);
                 double estimatedTimeNext = (double)timeUsed * estimatedNodesNext / nodesThisIteration;
 
                 // If we estimate we'll exceed our time allocation, stop now
-                if (timeUsed + estimatedTimeNext + timeBuffer > adjustedTimeAllocation) {
+                if (timeUsed + estimatedTimeNext + timeBuffer > adjustedTimeAllocation)
+                {
                     std::cout << "Stopping search due to time estimation. Time used: "
                               << timeUsed << "ms, Estimated for next: "
                               << estimatedTimeNext << "ms" << std::endl;
@@ -460,20 +470,24 @@ int Engine::getDepthAdjustment(const Move &move, const Board &board, bool isPVMo
 }
 
 // Static Exchange Evaluation (SEE)
-int Engine::seeCapture(const Board& board, const Move& move) const {
+int Engine::seeCapture(const Board &board, const Move &move) const
+{
     auto capturedPiece = board.getPieceAt(move.to);
-    if (!capturedPiece) {
+    if (!capturedPiece)
+    {
         // Check for en passant
         auto movingPiece = board.getPieceAt(move.from);
-        if (movingPiece && movingPiece->getType() == PieceType::PAWN && 
-            move.to == board.getEnPassantTarget()) {
+        if (movingPiece && movingPiece->getType() == PieceType::PAWN &&
+            move.to == board.getEnPassantTarget())
+        {
             return PAWN_VALUE; // En passant captures a pawn
         }
         return 0; // Not a capture
     }
 
     auto movingPiece = board.getPieceAt(move.from);
-    if (!movingPiece) return 0;
+    if (!movingPiece)
+        return 0;
 
     // Create a temporary board with the capture made
     Board tempBoard = board;
@@ -482,29 +496,35 @@ int Engine::seeCapture(const Board& board, const Move& move) const {
 
     int captureValue = getPieceValue(capturedPiece->getType());
     int attackerValue = getPieceValue(movingPiece->getType());
-    
+
     // Calculate what happens if the opponent recaptures
     int opponentResponse = see(tempBoard, move.to, movingPiece->getColor(), attackerValue);
-    
+
     return captureValue - opponentResponse;
 }
 
 // Static Exchange Evaluation - simulates a sequence of captures on a square
-int Engine::see(const Board& board, const Position& square, Color side, int captureValue) const {
+int Engine::see(const Board &board, const Position &square, Color side, int captureValue) const
+{
     // Find all attackers of the given square, sorted by piece value (least valuable first)
     std::vector<std::pair<int, Position>> attackers;
-    
-    for (int row = 0; row < 8; row++) {
-        for (int col = 0; col < 8; col++) {
+
+    for (int row = 0; row < 8; row++)
+    {
+        for (int col = 0; col < 8; col++)
+        {
             Position pos(row, col);
             auto piece = board.getPieceAt(pos);
-            
-            if (piece && piece->getColor() != side) {
+
+            if (piece && piece->getColor() != side)
+            {
                 // Check if this piece can attack the target square
                 auto moves = piece->getLegalMoves(board);
-                
-                for (const auto& move : moves) {
-                    if (move.to == square) {
+
+                for (const auto &move : moves)
+                {
+                    if (move.to == square)
+                    {
                         int pieceValue = getPieceValue(piece->getType());
                         attackers.emplace_back(pieceValue, pos);
                         break; // Only need to know it can attack, not how many ways
@@ -513,30 +533,31 @@ int Engine::see(const Board& board, const Position& square, Color side, int capt
             }
         }
     }
-    
+
     // If no attackers, the previous capture stands
-    if (attackers.empty()) {
+    if (attackers.empty())
+    {
         return 0;
     }
-    
+
     // Sort attackers by piece value (least valuable first for optimal play)
     std::sort(attackers.begin(), attackers.end());
-    
+
     // Take the least valuable attacker
     int attackerValue = attackers[0].first;
-    
+
     // Create a temporary board to simulate the capture
     Board tempBoard = board;
-    
+
     // Remove the attacking piece and place it on the target square
     tempBoard.setPieceAt(attackers[0].second, nullptr);
     auto attackingPiece = board.getPieceAt(attackers[0].second);
     tempBoard.setPieceAt(square, attackingPiece);
-    
+
     // Recursively calculate the score if the opponent recaptures
     // Note: we flip the side and negate the result
     int opponentResponse = see(tempBoard, square, (side == Color::WHITE) ? Color::BLACK : Color::WHITE, attackerValue);
-    
+
     // The score is: what we capture minus what the opponent gets back
     return std::max(0, captureValue - opponentResponse);
 }
@@ -785,8 +806,9 @@ int Engine::quiescenceSearch(Board &board, int alpha, int beta, uint64_t hashKey
     nodesSearched++;
 
     // Maximum recursion depth check
-    if (ply >= MAX_PLY - 1)
-        return evaluatePosition(board);
+    // Maximum recursion depth check for quiescence
+if (ply >= MAX_QSEARCH_DEPTH)
+    return evaluatePosition(board);
 
     // Stand-pat score (evaluate the current position without making any moves)
     int standPat = evaluatePosition(board);
@@ -918,12 +940,12 @@ int Engine::quiescenceSearch(Board &board, int alpha, int beta, uint64_t hashKey
         // Save board state for unmaking move
         BoardState previousState;
 
+        // Calculate new hash key BEFORE making the move
+        uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
+
         // Make the move
         if (!board.makeMove(move, previousState))
             continue;
-
-        // Calculate new hash key
-        uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
 
         // Recursively search
         int score = -quiescenceSearch(board, -beta, -alpha, newHashKey, ply + 1);
@@ -964,9 +986,9 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
     }
 
     // Check for search termination conditions
-    if (ply >= MAX_PLY - 1)
-    {
-        return evaluatePosition(board);
+   // Maximum recursion depth check for quiescence
+if (ply >= MAX_QSEARCH_DEPTH)
+    return evaluatePosition(board);
     }
 
     // If we've reached the maximum depth, use quiescence search
@@ -1052,301 +1074,301 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
     // This will be used to store the principal variation
     std::vector<Move> childPV;
 
-  // REPLACE the maximizing player section in pvSearch method with this:
-if (maximizingPlayer)
-{
-    int maxEval = std::numeric_limits<int>::min();
-
-    for (size_t i = 0; i < scoredMoves.size(); i++)
+    // REPLACE the maximizing player section in pvSearch method with this:
+    if (maximizingPlayer)
     {
-        const Move &move = scoredMoves[i].second;
+        int maxEval = std::numeric_limits<int>::min();
 
-        // Determine move characteristics for LMR
-        bool isPVMoveCheck = false;
-        for (int d = 1; d <= maxDepth; d++)
+        for (size_t i = 0; i < scoredMoves.size(); i++)
         {
-            if (isPVMove(move, d, ply))
+            const Move &move = scoredMoves[i].second;
+
+            // Determine move characteristics for LMR
+            bool isPVMoveCheck = false;
+            for (int d = 1; d <= maxDepth; d++)
             {
-                isPVMoveCheck = true;
-                break;
+                if (isPVMove(move, d, ply))
+                {
+                    isPVMoveCheck = true;
+                    break;
+                }
             }
-        }
 
-        bool isCapture = board.getPieceAt(move.to) != nullptr;
-        bool isKillerMoveCheck = isKillerMove(move, ply);
-        
-        // Save board state for unmaking move
-        BoardState previousState;
+            bool isCapture = board.getPieceAt(move.to) != nullptr;
+            bool isKillerMoveCheck = isKillerMove(move, ply);
 
-        // Make the move
-        if (!board.makeMove(move, previousState))
-            continue;
+            // Save board state for unmaking move
+            BoardState previousState;
 
-        bool isCheckMove = board.isInCheck();
-        
-        // Calculate depth adjustment
-        int moveExtension = extension;
+            // Make the move
+            if (!board.makeMove(move, previousState))
+                continue;
 
-        // Recapture Extension
-        if (lastMove.to.isValid() && move.to == lastMove.to)
-        {
-            moveExtension = std::max(moveExtension, 1);
-        }
+            bool isCheckMove = board.isInCheck();
 
-        // Pawn Push Extension
-        auto piece = board.getPieceAt(move.to); // Use move.to since piece is now there
-        if (piece && piece->getType() == PieceType::PAWN)
-        {
-            int destRow = (board.getSideToMove() == Color::BLACK) ? 6 : 1; // 7th rank (flipped because we switched sides)
-            if (move.to.row == destRow)
+            // Calculate depth adjustment
+            int moveExtension = extension;
+
+            // Recapture Extension
+            if (lastMove.to.isValid() && move.to == lastMove.to)
             {
                 moveExtension = std::max(moveExtension, 1);
             }
-        }
 
-        // Calculate LMR reduction
-        int lmrReduction = calculateLMRReduction(depth, i, foundPV, isCapture, isCheckMove, isKillerMoveCheck);
-        
-        // Final depth after adjustments
-        int newDepth = depth - 1 + moveExtension - lmrReduction;
-        newDepth = std::max(0, newDepth);
-
-        // Calculate the new hash key after the move
-        uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
-
-        // Recursively evaluate the position
-        childPV.clear();
-        int eval;
-
-        if (foundPV)
-        {
-            // For non-PV moves, try LMR first if applicable
-            if (lmrReduction > 0)
+            // Pawn Push Extension
+            auto piece = board.getPieceAt(move.to); // Use move.to since piece is now there
+            if (piece && piece->getType() == PieceType::PAWN)
             {
-                // Search with reduced depth
-                eval = -pvSearch(board, newDepth, -alpha - 1, -alpha, false, childPV, newHashKey, ply + 1, move);
-                
-                // If LMR search fails high, re-search at full depth
-                if (eval > alpha)
+                int destRow = (board.getSideToMove() == Color::BLACK) ? 6 : 1; // 7th rank (flipped because we switched sides)
+                if (move.to.row == destRow)
                 {
-                    newDepth = depth - 1 + moveExtension; // Full depth
-                    childPV.clear();
+                    moveExtension = std::max(moveExtension, 1);
+                }
+            }
+
+            // Calculate LMR reduction
+            int lmrReduction = calculateLMRReduction(depth, i, foundPV, isCapture, isCheckMove, isKillerMoveCheck);
+
+            // Final depth after adjustments
+            int newDepth = depth - 1 + moveExtension - lmrReduction;
+            newDepth = std::max(0, newDepth);
+
+            // Calculate the new hash key after the move
+            uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
+
+            // Recursively evaluate the position
+            childPV.clear();
+            int eval;
+
+            if (foundPV)
+            {
+                // For non-PV moves, try LMR first if applicable
+                if (lmrReduction > 0)
+                {
+                    // Search with reduced depth
+                    eval = -pvSearch(board, newDepth, -alpha - 1, -alpha, false, childPV, newHashKey, ply + 1, move);
+
+                    // If LMR search fails high, re-search at full depth
+                    if (eval > alpha)
+                    {
+                        newDepth = depth - 1 + moveExtension; // Full depth
+                        childPV.clear();
+                        eval = -pvSearch(board, newDepth, -alpha - 1, -alpha, false, childPV, newHashKey, ply + 1, move);
+                    }
+                }
+                else
+                {
+                    // No reduction, do null window search
                     eval = -pvSearch(board, newDepth, -alpha - 1, -alpha, false, childPV, newHashKey, ply + 1, move);
                 }
+
+                // If we get a fail-high, re-search with full window
+                if (eval > alpha && eval < beta)
+                {
+                    childPV.clear();
+                    eval = -pvSearch(board, newDepth, -beta, -alpha, false, childPV, newHashKey, ply + 1, move);
+                }
             }
             else
             {
-                // No reduction, do null window search
-                eval = -pvSearch(board, newDepth, -alpha - 1, -alpha, false, childPV, newHashKey, ply + 1, move);
-            }
-
-            // If we get a fail-high, re-search with full window
-            if (eval > alpha && eval < beta)
-            {
-                childPV.clear();
+                // First move gets a full window search
                 eval = -pvSearch(board, newDepth, -beta, -alpha, false, childPV, newHashKey, ply + 1, move);
+                foundPV = true;
             }
-        }
-        else
-        {
-            // First move gets a full window search
-            eval = -pvSearch(board, newDepth, -beta, -alpha, false, childPV, newHashKey, ply + 1, move);
-            foundPV = true;
-        }
 
-        // Unmake the move
-        board.unmakeMove(move, previousState);
+            // Unmake the move
+            board.unmakeMove(move, previousState);
 
-        // Update the best move if this move is better
-        if (eval > maxEval)
-        {
-            maxEval = eval;
-            localBestMove = move;
-
-            // Update principal variation
-            pv.clear();
-            pv.push_back(move);
-            pv.insert(pv.end(), childPV.begin(), childPV.end());
-        }
-
-        // Alpha-beta pruning
-        alpha = std::max(alpha, eval);
-        if (beta <= alpha)
-        {
-            // Store this move as a killer move if it's not a capture
-            if (!isCapture)
+            // Update the best move if this move is better
+            if (eval > maxEval)
             {
-                storeKillerMove(move, ply);
-                updateHistoryScore(move, depth, Color::WHITE); // Use WHITE since maximizing
-                
-                if (lastMove.from.isValid() && lastMove.to.isValid())
+                maxEval = eval;
+                localBestMove = move;
+
+                // Update principal variation
+                pv.clear();
+                pv.push_back(move);
+                pv.insert(pv.end(), childPV.begin(), childPV.end());
+            }
+
+            // Alpha-beta pruning
+            alpha = std::max(alpha, eval);
+            if (beta <= alpha)
+            {
+                // Store this move as a killer move if it's not a capture
+                if (!isCapture)
                 {
-                    storeCounterMove(lastMove, move);
+                    storeKillerMove(move, ply);
+                    updateHistoryScore(move, depth, Color::WHITE); // Use WHITE since maximizing
+
+                    if (lastMove.from.isValid() && lastMove.to.isValid())
+                    {
+                        storeCounterMove(lastMove, move);
+                    }
                 }
-            }
 
-            nodeType = NodeType::BETA;
-            break;
-        }
-    }
-
-    // Store result in transposition table
-    if (maxEval > originalAlpha && maxEval < beta)
-    {
-        nodeType = NodeType::EXACT;
-    }
-    transpositionTable.store(hashKey, depth, maxEval, nodeType, localBestMove);
-
-    return maxEval;
-}
-   // REPLACE the minimizing player section (else clause) in pvSearch method with this:
-else
-{
-    // Minimizing player
-    int minEval = std::numeric_limits<int>::max();
-
-    for (size_t i = 0; i < scoredMoves.size(); i++)
-    {
-        const Move &move = scoredMoves[i].second;
-
-        // Determine move characteristics for LMR
-        bool isPVMoveCheck = false;
-        for (int d = 1; d <= maxDepth; d++)
-        {
-            if (isPVMove(move, d, ply))
-            {
-                isPVMoveCheck = true;
+                nodeType = NodeType::BETA;
                 break;
             }
         }
 
-        bool isCapture = board.getPieceAt(move.to) != nullptr;
-        bool isKillerMoveCheck = isKillerMove(move, ply);
-        
-        // Save board state for unmaking move
-        BoardState previousState;
-
-        // Make the move
-        if (!board.makeMove(move, previousState))
-            continue;
-
-        bool isCheckMove = board.isInCheck();
-        
-        // Calculate depth adjustment
-        int moveExtension = extension;
-
-        // Recapture Extension
-        if (lastMove.to.isValid() && move.to == lastMove.to)
+        // Store result in transposition table
+        if (maxEval > originalAlpha && maxEval < beta)
         {
-            moveExtension = std::max(moveExtension, 1);
+            nodeType = NodeType::EXACT;
         }
+        transpositionTable.store(hashKey, depth, maxEval, nodeType, localBestMove);
 
-        // Pawn Push Extension
-        auto piece = board.getPieceAt(move.to);
-        if (piece && piece->getType() == PieceType::PAWN)
+        return maxEval;
+    }
+    // REPLACE the minimizing player section (else clause) in pvSearch method with this:
+    else
+    {
+        // Minimizing player
+        int minEval = std::numeric_limits<int>::max();
+
+        for (size_t i = 0; i < scoredMoves.size(); i++)
         {
-            int destRow = (board.getSideToMove() == Color::BLACK) ? 6 : 1; // 7th rank
-            if (move.to.row == destRow)
+            const Move &move = scoredMoves[i].second;
+
+            // Determine move characteristics for LMR
+            bool isPVMoveCheck = false;
+            for (int d = 1; d <= maxDepth; d++)
+            {
+                if (isPVMove(move, d, ply))
+                {
+                    isPVMoveCheck = true;
+                    break;
+                }
+            }
+
+            bool isCapture = board.getPieceAt(move.to) != nullptr;
+            bool isKillerMoveCheck = isKillerMove(move, ply);
+
+            // Save board state for unmaking move
+            BoardState previousState;
+
+            // Make the move
+            if (!board.makeMove(move, previousState))
+                continue;
+
+            bool isCheckMove = board.isInCheck();
+
+            // Calculate depth adjustment
+            int moveExtension = extension;
+
+            // Recapture Extension
+            if (lastMove.to.isValid() && move.to == lastMove.to)
             {
                 moveExtension = std::max(moveExtension, 1);
             }
-        }
 
-        // Calculate LMR reduction
-        int lmrReduction = calculateLMRReduction(depth, i, foundPV, isCapture, isCheckMove, isKillerMoveCheck);
-        
-        // Final depth after adjustments
-        int newDepth = depth - 1 + moveExtension - lmrReduction;
-        newDepth = std::max(0, newDepth);
-
-        // Calculate the new hash key after the move
-        uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
-
-        // Recursively evaluate the position
-        childPV.clear();
-        int eval;
-
-        if (foundPV)
-        {
-            // For non-PV moves, try LMR first if applicable
-            if (lmrReduction > 0)
+            // Pawn Push Extension
+            auto piece = board.getPieceAt(move.to);
+            if (piece && piece->getType() == PieceType::PAWN)
             {
-                // Search with reduced depth
-                eval = -pvSearch(board, newDepth, -beta + 1, -beta, true, childPV, newHashKey, ply + 1, move);
-                
-                // If LMR search fails low, re-search at full depth
-                if (eval < beta)
+                int destRow = (board.getSideToMove() == Color::BLACK) ? 6 : 1; // 7th rank
+                if (move.to.row == destRow)
                 {
-                    newDepth = depth - 1 + moveExtension; // Full depth
-                    childPV.clear();
+                    moveExtension = std::max(moveExtension, 1);
+                }
+            }
+
+            // Calculate LMR reduction
+            int lmrReduction = calculateLMRReduction(depth, i, foundPV, isCapture, isCheckMove, isKillerMoveCheck);
+
+            // Final depth after adjustments
+            int newDepth = depth - 1 + moveExtension - lmrReduction;
+            newDepth = std::max(0, newDepth);
+
+            // Calculate the new hash key after the move
+            uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
+
+            // Recursively evaluate the position
+            childPV.clear();
+            int eval;
+
+            if (foundPV)
+            {
+                // For non-PV moves, try LMR first if applicable
+                if (lmrReduction > 0)
+                {
+                    // Search with reduced depth
                     eval = -pvSearch(board, newDepth, -beta + 1, -beta, true, childPV, newHashKey, ply + 1, move);
+
+                    // If LMR search fails low, re-search at full depth
+                    if (eval < beta)
+                    {
+                        newDepth = depth - 1 + moveExtension; // Full depth
+                        childPV.clear();
+                        eval = -pvSearch(board, newDepth, -beta + 1, -beta, true, childPV, newHashKey, ply + 1, move);
+                    }
+                }
+                else
+                {
+                    // No reduction, do null window search
+                    eval = -pvSearch(board, newDepth, -beta + 1, -beta, true, childPV, newHashKey, ply + 1, move);
+                }
+
+                // If we get a fail-low, re-search with full window
+                if (eval < beta && eval > alpha)
+                {
+                    childPV.clear();
+                    eval = -pvSearch(board, newDepth, -beta, -alpha, true, childPV, newHashKey, ply + 1, move);
                 }
             }
             else
             {
-                // No reduction, do null window search
-                eval = -pvSearch(board, newDepth, -beta + 1, -beta, true, childPV, newHashKey, ply + 1, move);
-            }
-
-            // If we get a fail-low, re-search with full window
-            if (eval < beta && eval > alpha)
-            {
-                childPV.clear();
+                // First move gets a full window search
                 eval = -pvSearch(board, newDepth, -beta, -alpha, true, childPV, newHashKey, ply + 1, move);
+                foundPV = true;
             }
-        }
-        else
-        {
-            // First move gets a full window search
-            eval = -pvSearch(board, newDepth, -beta, -alpha, true, childPV, newHashKey, ply + 1, move);
-            foundPV = true;
-        }
 
-        // Unmake the move
-        board.unmakeMove(move, previousState);
+            // Unmake the move
+            board.unmakeMove(move, previousState);
 
-        // Update the best move if this move is better
-        if (eval < minEval)
-        {
-            minEval = eval;
-            localBestMove = move;
-
-            // Update principal variation
-            pv.clear();
-            pv.push_back(move);
-            pv.insert(pv.end(), childPV.begin(), childPV.end());
-        }
-
-        // Alpha-beta pruning
-        beta = std::min(beta, eval);
-        if (beta <= alpha)
-        {
-            // Store this move as a killer move if it's not a capture
-            if (!isCapture)
+            // Update the best move if this move is better
+            if (eval < minEval)
             {
-                storeKillerMove(move, ply);
-                updateHistoryScore(move, depth, Color::BLACK); // Use BLACK since minimizing
-                
-                if (lastMove.from.isValid() && lastMove.to.isValid())
-                {
-                    storeCounterMove(lastMove, move);
-                }
+                minEval = eval;
+                localBestMove = move;
+
+                // Update principal variation
+                pv.clear();
+                pv.push_back(move);
+                pv.insert(pv.end(), childPV.begin(), childPV.end());
             }
 
-            nodeType = NodeType::ALPHA;
-            break;
+            // Alpha-beta pruning
+            beta = std::min(beta, eval);
+            if (beta <= alpha)
+            {
+                // Store this move as a killer move if it's not a capture
+                if (!isCapture)
+                {
+                    storeKillerMove(move, ply);
+                    updateHistoryScore(move, depth, Color::BLACK); // Use BLACK since minimizing
+
+                    if (lastMove.from.isValid() && lastMove.to.isValid())
+                    {
+                        storeCounterMove(lastMove, move);
+                    }
+                }
+
+                nodeType = NodeType::ALPHA;
+                break;
+            }
         }
-    }
 
-    // Store result in transposition table
-    if (minEval > originalAlpha && minEval < beta)
-    {
-        nodeType = NodeType::EXACT;
-    }
-    transpositionTable.store(hashKey, depth, minEval, nodeType, localBestMove);
+        // Store result in transposition table
+        if (minEval > originalAlpha && minEval < beta)
+        {
+            nodeType = NodeType::EXACT;
+        }
+        transpositionTable.store(hashKey, depth, minEval, nodeType, localBestMove);
 
-    return minEval;
-}
+        return minEval;
+    }
 }
 
 // Regular alpha-beta search (kept for reference/fallback)
@@ -1447,12 +1469,12 @@ int Engine::alphaBeta(Board &board, int depth, int alpha, int beta, bool maximiz
             // Save board state for unmaking move
             BoardState previousState;
 
+            // Calculate new hash key BEFORE making the move
+            uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
+
             // Make the move
             if (!board.makeMove(move, previousState))
                 continue;
-
-            // Calculate the new hash key after the move
-            uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
 
             // Recursively evaluate the position
             childPV.clear();
@@ -1518,12 +1540,12 @@ int Engine::alphaBeta(Board &board, int depth, int alpha, int beta, bool maximiz
             // Save board state for unmaking move
             BoardState previousState;
 
+            // Calculate new hash key BEFORE making the move
+            uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
+
             // Make the move
             if (!board.makeMove(move, previousState))
                 continue;
-
-            // Calculate the new hash key after the move
-            uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
 
             // Recursively evaluate the position
             childPV.clear();
