@@ -54,10 +54,11 @@ public:
     {
         // Initialize PV table
         pvTable.resize(MAX_PLY);
-        for (int i = 0; i < MAX_PLY; i++) {
+        for (int i = 0; i < MAX_PLY; i++)
+        {
             pvTable[i].clear();
         }
-        
+
         // Initialize tables
         clearKillerMoves();
         clearHistoryTable();
@@ -71,16 +72,17 @@ public:
     }
 
     // Set time for this move in milliseconds
-void setTimeForMove(int timeMs) { 
-    timeAllocated = timeMs; 
-    timeManaged = true; 
-}
+    void setTimeForMove(int timeMs)
+    {
+        timeAllocated = timeMs;
+        timeManaged = true;
+    }
 
-// Enable/disable time management
-void setTimeManagement(bool enabled) { timeManaged = enabled; }
+    // Enable/disable time management
+    void setTimeManagement(bool enabled) { timeManaged = enabled; }
 
-// Check if we should stop searching due to time
-bool shouldStopSearch() const;
+    // Check if we should stop searching due to time
+    bool shouldStopSearch() const;
 
     // Set the search depth
     void setDepth(int depth) { maxDepth = depth; }
@@ -114,16 +116,16 @@ bool shouldStopSearch() const;
 
 private:
     // Helper function to get depth adjustment for a move
-    int getDepthAdjustment(const Move& move, const Board& board, bool isPVMove, int moveIndex) const;
+    int getDepthAdjustment(const Move &move, const Board &board, bool isPVMove, int moveIndex) const;
 
     // Store PV at a specific depth
-    void storePV(int depth, const std::vector<Move>& pv);
+    void storePV(int depth, const std::vector<Move> &pv);
 
     // Check if a move is in the PV at a specific depth and ply
-    bool isPVMove(const Move& move, int depth, int ply) const;
+    bool isPVMove(const Move &move, int depth, int ply) const;
 
     // Iterative deepening search
-    Move iterativeDeepeningSearch(Board& board, int maxDepth, uint64_t hashKey);
+    Move iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashKey);
 
     // Alpha-beta minimax search algorithm with transposition table
     int alphaBeta(Board &board, int depth, int alpha, int beta, bool maximizingPlayer,
@@ -148,6 +150,9 @@ private:
 
     // MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) scoring
     int getMVVLVAScore(PieceType attacker, PieceType victim) const;
+
+    int calculateLMRReduction(int depth, int moveIndex, bool foundPV, bool isCapture,
+                              bool isCheck, bool isKillerMove) const;
 
     // Store a killer move
     void storeKillerMove(const Move &move, int ply);
@@ -183,6 +188,11 @@ private:
     static const int queenTable[64];
     static const int kingMiddleGameTable[64];
     static const int kingEndGameTable[64];
+    static const int LMR_MIN_DEPTH = 3;            // Minimum depth to apply LMR
+    static const int LMR_MIN_MOVE_INDEX = 3;       // Start reducing after this many moves
+    static const double LMR_BASE_REDUCTION = 0.75; // Base reduction factor
+    static const double LMR_DEPTH_FACTOR = 0.5;    // How much depth affects reduction
+    static const double LMR_MOVE_FACTOR = 0.3;     // How much move index affects reduction
 
     // Piece values
     static const int PAWN_VALUE = 100;
