@@ -209,6 +209,7 @@ Move Engine::iterativeDeepeningSearch(Board& board, int maxDepth, uint64_t hashK
         int alpha, beta, delta = windowSize;
         int score;
         
+        
         // For depth 1, use full window
         if (depth == 1) {
             alpha = -100000;
@@ -306,8 +307,40 @@ Move Engine::iterativeDeepeningSearch(Board& board, int maxDepth, uint64_t hashK
         
         std::cout << ", PV: " << getPVString() << std::endl;
         
-        // Time management check
-        if (timeManaged && timeAllocated > 0) {
+       // Time management check
+if (timeManaged && timeAllocated > 0) {
+    int timeUsed = duration.count();
+    
+    // Calculate adjusted time allocation based on position stability
+    int adjustedTimeAllocation = timeAllocated;
+    if (positionIsUnstable) {
+        adjustedTimeAllocation += (timeAllocated * unstableExtensionPercent) / 100;
+        std::cout << "Extending time allocation to " << adjustedTimeAllocation 
+                  << "ms due to position instability" << std::endl;
+    }
+    
+    // Stop if we've used most of our time
+    if (timeUsed >= adjustedTimeAllocation - timeBuffer) {
+        std::cout << "Stopping search due to time limit. Time used: " 
+                  << timeUsed << "ms" << std::endl;
+        break;
+    }
+    
+    // Estimate time for next iteration
+    if (nodesThisIteration > 0 && depth > 1) {
+        double branchingFactor = 4.0; // Conservative estimate
+        long estimatedNodesNext = nodesThisIteration * branchingFactor;
+        double estimatedTimeNext = (double)timeUsed * estimatedNodesNext / nodesThisIteration;
+        
+        // If we estimate we'll exceed our time allocation, stop now
+        if (timeUsed + estimatedTimeNext + timeBuffer > adjustedTimeAllocation) {
+            std::cout << "Stopping search due to time estimation. Time used: " 
+                      << timeUsed << "ms, Estimated for next: " 
+                      << estimatedTimeNext << "ms" << std::endl;
+            break;
+        }
+    }
+}
             // Check if we should start next iteration
             int timeUsed = duration.count();
             
@@ -1398,6 +1431,14 @@ int Engine::evaluatePosition(const Board& board) {
     
     // Adjust the score based on the side to move
     return board.getSideToMove() == Color::WHITE ? score : -score;
+}
+bool Engine::shouldStopSearch() const {
+    if (!timeManaged || timeAllocated <= 0) return false;
+    
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - searchStartTime);
+    
+    return elapsed.count() >= (timeAllocated - timeBuffer);
 }
 
 bool Engine::isEndgame(const Board& board) const {
