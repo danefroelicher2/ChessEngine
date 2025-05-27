@@ -52,19 +52,36 @@ std::vector<Move> Pawn::getLegalMoves(const Board& board) const {
             if (pieceAtCapture && pieceAtCapture->getColor() != color) {
                 addPromotionMoves(position, capturePos);
             }
-            // En passant capture - ENHANCED validation
-            else if (capturePos == board.getEnPassantTarget()) {
-                // Validate en passant conditions more thoroughly
-                int capturedPawnRow = (color == Color::WHITE) ? capturePos.row - 1 : capturePos.row + 1;
-                auto capturedPawn = board.getPieceAt(Position(capturedPawnRow, capturePos.col));
-                
-                if (capturedPawn && 
-                    capturedPawn->getType() == PieceType::PAWN && 
-                    capturedPawn->getColor() != color) {
-                    // En passant is valid (never results in promotion)
-                    moves.emplace_back(position, capturePos);
-                }
+         // En passant capture - CRITICAL FIX: Complete validation
+else if (capturePos == board.getEnPassantTarget() && board.getEnPassantTarget().isValid()) {
+    // CRITICAL FIX: Validate en passant rank restrictions
+    bool validEnPassantRank = false;
+    if (color == Color::WHITE && position.row == 4 && capturePos.row == 5) {
+        validEnPassantRank = true; // White pawn on 5th rank capturing to 6th
+    } else if (color == Color::BLACK && position.row == 3 && capturePos.row == 2) {
+        validEnPassantRank = true; // Black pawn on 4th rank capturing to 3rd
+    }
+    
+    if (validEnPassantRank) {
+        // Validate that there's actually a pawn to capture
+        int capturedPawnRow = (color == Color::WHITE) ? capturePos.row - 1 : capturePos.row + 1;
+        auto capturedPawn = board.getPieceAt(Position(capturedPawnRow, capturePos.col));
+        
+        if (capturedPawn && 
+            capturedPawn->getType() == PieceType::PAWN && 
+            capturedPawn->getColor() != color) {
+            
+            // CRITICAL FIX: Additional validation - the captured pawn should be on correct rank
+            bool capturedPawnOnCorrectRank = (color == Color::WHITE && capturedPawnRow == 4) ||
+                                           (color == Color::BLACK && capturedPawnRow == 3);
+            
+            if (capturedPawnOnCorrectRank) {
+                // En passant is valid (never results in promotion)
+                moves.emplace_back(position, capturePos);
             }
+        }
+    }
+}
         }
     }
     

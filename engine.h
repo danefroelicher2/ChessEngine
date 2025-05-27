@@ -5,6 +5,8 @@
 #include "game.h"
 #include "transposition.h"
 #include "zobrist.h"
+#include <mutex>
+#include <atomic>
 
 // Maximum search depth - adjust if needed
 #define MAX_PLY 64
@@ -44,6 +46,9 @@ private:
 
     // Search instability detection
     bool positionIsUnstable;
+    mutable std::mutex timeMutex;
+    std::atomic<bool> searchShouldStop{false};
+    std::atomic<bool> timeManagementActive{false};
     int unstableExtensionPercent; // Additional percentage of time for unstable positions
 
 public:

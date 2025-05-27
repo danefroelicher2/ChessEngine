@@ -382,6 +382,9 @@ Move Engine::getBestMove()
 {
     // Reset search statistics
     resetStats();
+    // CRITICAL FIX: Reset search flags at start of new search
+searchShouldStop.store(false);
+timeManagementActive.store(timeManaged);
     searchStartTime = std::chrono::high_resolution_clock::now();
 
     // Get a copy of the board
@@ -424,7 +427,7 @@ Move Engine::iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashK
     }
 
     // Iterative deepening loop
-    for (int depth = 1; depth <= maxDepth; depth++)
+   for (int depth = 1; depth <= maxDepth && !searchShouldStop.load(); depth++)
     {
         std::vector<Move> pv;
 
@@ -1091,8 +1094,13 @@ int Engine::getMoveScore(const Move &move, const Board &board, const Move &ttMov
 // Quiescence search for handling captures at leaf nodes
 int Engine::quiescenceSearch(Board &board, int alpha, int beta, uint64_t hashKey, int ply)
 {
-    // Track nodes searched
-    nodesSearched++;
+// Track nodes searched
+nodesSearched++;
+
+// CRITICAL FIX: Check for search termination every ~1000 nodes
+if ((nodesSearched % 1000) == 0 && shouldStopSearch()) {
+    return evaluatePosition(board);
+}
 
     // Maximum recursion depth check
     // Maximum recursion depth check for quiescence
@@ -2091,16 +2099,32 @@ int Engine::evaluatePosition(const Board &board)
 }
 bool Engine::shouldStopSearch() const
 {
-    if (!timeManaged || timeAllocated <= 0)
-        return false;
+    // CRITICAL FIX: Thread-safe time checking
+    if (!timeManaged || timeAllocated <= 0) {
+        return searchShouldStop.load();
+    }
 
+    // Use atomic flag for immediate response
+    if (searchShouldStop.load()) {
+        return true;
+    }
+
+    // Thread-safe time calculation
+    std::lock_guard<std::mutex> lock(timeMutex);
+    
     auto currentTime = std::chrono::high_resolution_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - searchStartTime);
 
     int calculatedBuffer = std::max(50, std::min(500, timeAllocated * 5 / 100));
     int safeTimeLimit = timeAllocated - calculatedBuffer;
 
-    return elapsed.count() >= safeTimeLimit;
+    bool shouldStop = elapsed.count() >= safeTimeLimit;
+    
+    if (shouldStop) {
+        searchShouldStop.store(true);
+    }
+    
+    return shouldStop;
 }
 
 bool Engine::isEndgame(const Board &board) const
