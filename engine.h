@@ -19,6 +19,7 @@ private:
 
     // Principal Variation (PV) storage
     std::vector<Move> principalVariation;
+    std::vector<std::vector<Move>> pvTable; // Stores PV for each depth
 
     // Killer move tables - stores non-capturing moves that caused beta cutoffs
     // We'll store 2 killer moves per ply
@@ -36,19 +37,33 @@ private:
     long nodesSearched;
     std::chrono::time_point<std::chrono::high_resolution_clock> searchStartTime;
 
-public:
-Engine(Game &g, int depth = 3, int ttSizeMB = 64, bool useTimeManagement = false)
-    : game(g), maxDepth(depth), transpositionTable(ttSizeMB), nodesSearched(0),
-      timeAllocated(0), timeBuffer(100), timeManaged(useTimeManagement),
-      positionIsUnstable(false), unstableExtensionPercent(50)
-{
-    // Initialize tables
-    clearKillerMoves();
-    clearHistoryTable();
-    clearCounterMoves();
-}
+    // Time management variables
+    int timeAllocated; // time in milliseconds allocated for this move
+    int timeBuffer;    // safety buffer to avoid timeout
+    bool timeManaged;  // whether to use time management
+
+    // Search instability detection
+    bool positionIsUnstable;
+    int unstableExtensionPercent; // Additional percentage of time for unstable positions
 
 public:
+    Engine(Game &g, int depth = 3, int ttSizeMB = 64, bool useTimeManagement = false)
+        : game(g), maxDepth(depth), transpositionTable(ttSizeMB), nodesSearched(0),
+          timeAllocated(0), timeBuffer(100), timeManaged(useTimeManagement),
+          positionIsUnstable(false), unstableExtensionPercent(50)
+    {
+        // Initialize PV table
+        pvTable.resize(MAX_PLY);
+        for (int i = 0; i < MAX_PLY; i++) {
+            pvTable[i].clear();
+        }
+        
+        // Initialize tables
+        clearKillerMoves();
+        clearHistoryTable();
+        clearCounterMoves();
+    }
+
     void setTimeAllocation(int timeInMs)
     {
         timeAllocated = timeInMs;
@@ -68,49 +83,13 @@ public:
     void clearTT() { transpositionTable.clear(); }
 
     // Clear the killer moves
-    void clearKillerMoves()
-    {
-        for (int ply = 0; ply < MAX_PLY; ply++)
-        {
-            for (int i = 0; i < 2; i++)
-            {
-                killerMoves[ply][i] = Move(Position(), Position());
-            }
-        }
-    }
+    void clearKillerMoves();
 
     // Clear the counter moves
-    void clearCounterMoves()
-    {
-        for (int pieceType = 0; pieceType < 6; pieceType++)
-        {
-            for (int color = 0; color < 2; color++)
-            {
-                for (int from = 0; from < 64; from++)
-                {
-                    for (int to = 0; to < 64; to++)
-                    {
-                        counterMoves[pieceType][color][from][to] = Move(Position(), Position());
-                    }
-                }
-            }
-        }
-    }
+    void clearCounterMoves();
 
     // Clear the history table
-    void clearHistoryTable()
-    {
-        for (int color = 0; color < 2; color++)
-        {
-            for (int from = 0; from < 64; from++)
-            {
-                for (int to = 0; to < 64; to++)
-                {
-                    historyTable[color][from][to] = 0;
-                }
-            }
-        }
-    }
+    void clearHistoryTable();
 
     // Get the principal variation as a string
     std::string getPVString() const;
@@ -122,211 +101,17 @@ public:
     void resetStats() { nodesSearched = 0; }
 
 private:
-    // Time management variables
-    int timeAllocated; // time in milliseconds allocated for this move
-    int timeBuffer;    // safety buffer to avoid timeout
-    bool timeManaged;  // whether to use time management
-
-private:
-    // Search instability detection
-    bool positionIsUnstable;
-    int unstableExtensionPercent; // Additional percentage of time for unstable positions
-
-    private:
+    // Helper function to get depth adjustment for a move
     int getDepthAdjustment(const Move& move, const Board& board, bool isPVMove, int moveIndex) const;
 
-// In engine.h, add these member variables
-private:
-    // PV following enhancements
-    std::vector<std::vector<Move>> pvTable; // Stores PV for each depth
-    
-// Initialize in the constructor
-Engine::Engine(...) {
-    
-    // Initialize PV table
-    pvTable.resize(MAX_PLY);
-    for (int i = 0; i < MAX_PLY; i++) {
-        pvTable[i].clear();
-    }
-}
+    // Store PV at a specific depth
+    void storePV(int depth, const std::vector<Move>& pv);
 
-// Add a function to store the PV at a specific depth
-void Engine::storePV(int depth, const std::vector<Move>& pv) {
-    pvTable[depth] = pv;
-}
+    // Check if a move is in the PV at a specific depth and ply
+    bool isPVMove(const Move& move, int depth, int ply) const;
 
-// Modify isPVMove to use the PV table
-bool Engine::isPVMove(const Move& move, int depth, int ply) const {
-    if (depth < 0 || depth >= MAX_PLY || ply >= pvTable[depth].size()) {
-        return false;
-    }
-    
-    const Move& pvMove = pvTable[depth][ply];
-    return (pvMove.from.row == move.from.row && 
-            pvMove.from.col == move.from.col && 
-            pvMove.to.row == move.to.row && 
-            pvMove.to.col == move.to.col);
-}
-
-
-private:
     // Iterative deepening search
-    Move Engine::iterativeDeepeningSearch(Board& board, int maxDepth, uint64_t hashKey) {
-    principalVariation.clear();
-    Move bestMove(Position(), Position());
-    Move previousBestMove(Position(), Position());
-    int bestScore = 0;
-    int previousScore = 0;
-    
-    // For time management
-    long nodesPrevious = 0;
-    long nodesTotal = 0;
-    
-    // For aspiration windows
-    int windowSize = 50;
-    
-    // For instability detection
-    int bestMoveChanges = 0;
-    int scoreSwings = 0;
-    bool isUnstable = false;
-    
-    // Iterative deepening loop
-    for (int depth = 1; depth <= maxDepth; depth++) {
-        std::vector<Move> pv;
-        
-        // Record nodes before this iteration
-        nodesPrevious = nodesSearched;
-        
-        // Store previous iteration's results
-        previousBestMove = bestMove;
-        previousScore = bestScore;
-        
-        // Color is set to true for maximizing player (WHITE), false for minimizing player (BLACK)
-        bool maximizingPlayer = board.getSideToMove() == Color::WHITE;
-        
-        int alpha, beta, delta = windowSize;
-        int score;
-        
-        // For depth 1, use full window
-        if (depth == 1) {
-            alpha = -100000;
-            beta = 100000;
-            score = pvSearch(board, depth, alpha, beta, maximizingPlayer, pv, hashKey, 0, Move(Position(), Position()));
-        } 
-        else {
-            // Use aspiration windows for deeper searches
-            alpha = bestScore - delta;
-            beta = bestScore + delta;
-            
-            // Try with narrow window first
-            while (true) {
-                score = pvSearch(board, depth, alpha, beta, maximizingPlayer, pv, hashKey, 0, Move(Position(), Position()));
-                
-                // If the score falls within our window, we're good
-                if (score > alpha && score < beta) {
-                    break;
-                }
-                
-                // If we failed low (score <= alpha), widen the window
-                if (score <= alpha) {
-                    alpha = std::max(-100000, alpha - delta);
-                    delta *= 2; // Increase window size
-                    std::cout << "Aspiration fail low. New alpha: " << alpha << std::endl;
-                } 
-                // If we failed high (score >= beta), widen the window
-                else if (score >= beta) {
-                    beta = std::min(100000, beta + delta);
-                    delta *= 2; // Increase window size
-                    std::cout << "Aspiration fail high. New beta: " << beta << std::endl;
-                }
-                
-                // If window is already full, break
-                if (alpha <= -99000 && beta >= 99000) {
-                    break;
-                }
-            }
-        }
-        
-        // Store the best move and score if we got valid results
-        if (!pv.empty()) {
-            bestMove = pv[0];
-            bestScore = score;
-            principalVariation = pv;
-        }
-        
-        // Instability detection
-        if (depth >= 2) {
-            // Check if best move changed
-            if (bestMove.from.row != previousBestMove.from.row || 
-                bestMove.from.col != previousBestMove.from.col || 
-                bestMove.to.row != previousBestMove.to.row || 
-                bestMove.to.col != previousBestMove.to.col) {
-                bestMoveChanges++;
-                std::cout << "Best move changed from " << previousBestMove.toString() 
-                          << " to " << bestMove.toString() << std::endl;
-            }
-            
-            // Check for significant evaluation swings
-            const int SCORE_SWING_THRESHOLD = 50; // Centipawns
-            if (std::abs(bestScore - previousScore) > SCORE_SWING_THRESHOLD) {
-                scoreSwings++;
-                std::cout << "Score swing detected: " << previousScore 
-                          << " -> " << bestScore << std::endl;
-            }
-            
-            // Determine if position is unstable
-            isUnstable = (bestMoveChanges >= 2 || scoreSwings >= 1) && depth >= 3;
-            
-            if (isUnstable && !positionIsUnstable) {
-                std::cout << "Position detected as unstable. Allocating more time." << std::endl;
-                positionIsUnstable = true;
-            }
-        }
-        
-        // Log the progress
-        auto endTime = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - searchStartTime);
-        
-        // Nodes for this iteration
-        long nodesThisIteration = nodesSearched - nodesPrevious;
-        nodesTotal = nodesSearched;
-        
-        std::cout << "Depth: " << depth 
-                  << ", Score: " << score 
-                  << ", Nodes: " << nodesSearched 
-                  << ", Time: " << duration.count() << "ms" 
-                  << ", NPS: " << static_cast<long>(nodesSearched * 1000.0 / duration.count())
-                  << ", PV: " << getPVString() << std::endl;
-        
-        // Time management check
-        if (timeManaged && timeAllocated > 0) {
-            // Check if we should start next iteration
-            int timeUsed = duration.count();
-            
-            // Calculate adjusted time allocation based on position stability
-            int adjustedTimeAllocation = timeAllocated;
-            if (positionIsUnstable) {
-                adjustedTimeAllocation += (timeAllocated * unstableExtensionPercent) / 100;
-                std::cout << "Extending time allocation to " << adjustedTimeAllocation 
-                          << "ms due to position instability" << std::endl;
-            }
-            
-            // Estimate time for next iteration: typically 4-5x more nodes required
-            long estimatedNodesNext = nodesThisIteration * 4.5;
-            double estimatedTimeNext = (double)timeUsed * estimatedNodesNext / nodesThisIteration;
-            
-            // If we estimate we'll exceed our adjusted time allocation for the next iteration, stop now
-            if (timeUsed + estimatedTimeNext + timeBuffer > adjustedTimeAllocation) {
-                std::cout << "Stopping search due to time constraints. Time used: " 
-                          << timeUsed << "ms, Estimated for next: " 
-                          << estimatedTimeNext << "ms" << std::endl;
-                break;
-            }
-        }
-    }
-    
-    return bestMove;
-}
+    Move iterativeDeepeningSearch(Board& board, int maxDepth, uint64_t hashKey);
 
     // Alpha-beta minimax search algorithm with transposition table
     int alphaBeta(Board &board, int depth, int alpha, int beta, bool maximizingPlayer,
@@ -338,6 +123,7 @@ private:
 
     // Quiescence search for handling captures at leaf nodes
     int quiescenceSearch(Board &board, int alpha, int beta, uint64_t hashKey, int ply);
+
     // Static Exchange Evaluation (SEE)
     int seeCapture(const Board &board, const Move &move) const;
     int see(const Board &board, const Position &square, Color side, int capture_value) const;
@@ -374,7 +160,7 @@ private:
                      const std::vector<Move> &pv, int ply, Color sideToMove,
                      const Move &lastMove) const;
 
-    // Check if a move is part of the principal variation
+    // Check if a move is part of the principal variation (deprecated version for compatibility)
     bool isPVMove(const Move &move, const std::vector<Move> &pv, int ply) const;
 
     // Piece value tables for positional evaluation
