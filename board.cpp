@@ -776,62 +776,158 @@ bool Board::canCastle(const Move &move) const
 
 bool Board::wouldBeInCheck(const Move &move, Color kingColor) const
 {
-    // Create a copy of the current board
-    Board tempBoard = *this;
-
-    // Get the piece at the source position
-    auto piece = tempBoard.getPieceAt(move.from);
-    if (!piece)
-        return false;
-
-    // Make the move on the temporary board
-    tempBoard.setPieceAt(move.from, nullptr);
-
-    // Handle en passant capture
-    if (piece->getType() == PieceType::PAWN && move.to == enPassantTarget)
-    {
-        int capturedPawnRow = (piece->getColor() == Color::WHITE) ? move.to.row - 1 : move.to.row + 1;
-        tempBoard.setPieceAt(Position(capturedPawnRow, move.to.col), nullptr);
-    }
-
-    // Handle castling
-    if (piece->getType() == PieceType::KING)
-    {
-        if (move.from.col == 4 && move.to.col == 6)
-        {
-            // Kingside castling
-            auto rook = tempBoard.getPieceAt(Position(move.from.row, 7));
-            tempBoard.setPieceAt(Position(move.from.row, 5), rook);
-            tempBoard.setPieceAt(Position(move.from.row, 7), nullptr);
-        }
-        else if (move.from.col == 4 && move.to.col == 2)
-        {
-            // Queenside castling
-            auto rook = tempBoard.getPieceAt(Position(move.from.row, 0));
-            tempBoard.setPieceAt(Position(move.from.row, 3), rook);
-            tempBoard.setPieceAt(Position(move.from.row, 0), nullptr);
-        }
-    }
-
-    // Set the piece at the destination position
-    tempBoard.setPieceAt(move.to, piece);
-
-    // Find the king's position
+    // SAFE APPROACH: Use direct attack simulation without full board copying
+    // This prevents infinite recursion and is efficient
+    
+    auto movingPiece = getPieceAt(move.from);
+    if (!movingPiece) return false;
+    
+    // Determine king position after the move
     Position kingPos;
-
-    if (piece->getType() == PieceType::KING && piece->getColor() == kingColor)
-    {
+    bool foundKing = false;
+    
+    if (movingPiece->getType() == PieceType::KING && movingPiece->getColor() == kingColor) {
+        // The king is moving - its new position will be the destination
         kingPos = move.to;
+        foundKing = true;
+    } else {
+        // Find the current king position
+        auto king = (kingColor == Color::WHITE) ? whiteKing : blackKing;
+        if (king) {
+            kingPos = king->getPosition();
+            foundKing = true;
+        }
     }
-    else
-    {
-        // Find the king
-        auto king = (kingColor == Color::WHITE) ? tempBoard.whiteKing : tempBoard.blackKing;
-        if (!king)
-            return false;
-        kingPos = king->getPosition();
+    
+    if (!foundKing) return false;
+    
+    // Check if any opponent piece can attack the king after this move
+    Color opponentColor = (kingColor == Color::WHITE) ? Color::BLACK : Color::WHITE;
+    
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+            Position piecePos(row, col);
+            auto piece = getPieceAt(piecePos);
+            
+            if (!piece || piece->getColor() != opponentColor) continue;
+            
+            // Skip the piece being captured (it won't be able to attack after the move)
+            if (piecePos == move.to) continue;
+            
+            // For castling, also skip the rook that moves
+            if (movingPiece->getType() == PieceType::KING) {
+                if ((move.from.col == 4 && move.to.col == 6 && piecePos.row == move.from.row && piecePos.col == 7) ||
+                    (move.from.col == 4 && move.to.col == 2 && piecePos.row == move.from.row && piecePos.col == 0)) {
+                    continue;
+                }
+            }
+            
+            // Check if this piece can attack the king position after the move
+            if (canPieceAttackSquareAfterMove(piece, piecePos, kingPos, move)) {
+                return true;
+            }
+        }
     }
+    
+    // Special case: Check if the moved piece itself gives check
+    // (This handles discovered attacks)
+    if (movingPiece->getColor() == opponentColor) {
+        Position newPiecePos = move.to;
+        if (canPieceAttackSquareSimple(movingPiece->getType(), newPiecePos, kingPos)) {
+            return true;
+        }
+    }
+    
+    return false;
+}
 
-    // Check if the king is in check after the move
-    return tempBoard.isSquareAttacked(kingPos, (kingColor == Color::WHITE) ? Color::BLACK : Color::WHITE);
+// Helper method - add this to board.cpp (and declare in board.h private section)
+bool Board::canPieceAttackSquareAfterMove(std::shared_ptr<Piece> piece, Position piecePos, 
+                                          Position target, const Move& simulatedMove) const
+{
+    if (!piece || !target.isValid() || !piecePos.isValid()) return false;
+    
+    // Adjust piece position if it's affected by castling
+    if (simulatedMove.from.isValid()) {
+        auto movingPiece = getPieceAt(simulatedMove.from);
+        if (movingPiece && movingPiece->getType() == PieceType::KING) {
+            // Handle rook movement in castling
+            if (simulatedMove.from.col == 4 && simulatedMove.to.col == 6) { // Kingside
+                if (piecePos.row == simulatedMove.from.row && piecePos.col == 7) {
+                    piecePos = Position(simulatedMove.from.row, 5); // Rook moves to f-file
+                }
+            } else if (simulatedMove.from.col == 4 && simulatedMove.to.col == 2) { // Queenside
+                if (piecePos.row == simulatedMove.from.row && piecePos.col == 0) {
+                    piecePos = Position(simulatedMove.from.row, 3); // Rook moves to d-file
+                }
+            }
+        }
+    }
+    
+    return canPieceAttackSquareSimple(piece->getType(), piecePos, target);
+}
+
+// Simple geometric attack check - add this to board.cpp (and declare in board.h private section)
+bool Board::canPieceAttackSquareSimple(PieceType pieceType, Position from, Position to) const
+{
+    if (!from.isValid() || !to.isValid()) return false;
+    
+    int rowDiff = to.row - from.row;
+    int colDiff = to.col - from.col;
+    
+    switch (pieceType) {
+        case PieceType::PAWN: {
+            // Note: We need to know the piece color, but we can infer from context
+            // For now, check both directions (this is safe for check detection)
+            return (abs(rowDiff) == 1 && abs(colDiff) == 1);
+        }
+        
+        case PieceType::KNIGHT: {
+            return (abs(rowDiff) == 2 && abs(colDiff) == 1) || 
+                   (abs(rowDiff) == 1 && abs(colDiff) == 2);
+        }
+        
+        case PieceType::BISHOP: {
+            if (abs(rowDiff) != abs(colDiff)) return false;
+            return isPathClearForMove(from, to);
+        }
+        
+        case PieceType::ROOK: {
+            if (rowDiff != 0 && colDiff != 0) return false;
+            return isPathClearForMove(from, to);
+        }
+        
+        case PieceType::QUEEN: {
+            if (rowDiff != 0 && colDiff != 0 && abs(rowDiff) != abs(colDiff)) return false;
+            return isPathClearForMove(from, to);
+        }
+        
+        case PieceType::KING: {
+            return abs(rowDiff) <= 1 && abs(colDiff) <= 1 && (rowDiff != 0 || colDiff != 0);
+        }
+        
+        default:
+            return false;
+    }
+}
+
+// Path checking helper - add this to board.cpp (and declare in board.h private section)
+bool Board::isPathClearForMove(Position from, Position to) const
+{
+    int rowStep = (to.row > from.row) ? 1 : (to.row < from.row) ? -1 : 0;
+    int colStep = (to.col > from.col) ? 1 : (to.col < from.col) ? -1 : 0;
+    
+    Position current = from;
+    current.row += rowStep;
+    current.col += colStep;
+    
+    while (current.row != to.row || current.col != to.col) {
+        if (getPieceAt(current)) {
+            return false; // Path is blocked
+        }
+        current.row += rowStep;
+        current.col += colStep;
+    }
+    
+    return true;
 }

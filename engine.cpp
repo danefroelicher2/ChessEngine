@@ -487,9 +487,7 @@ int Engine::seeCapture(const Board &board, const Move &move) const
         return 0; // Not a capture
     }
 
-    auto movingPiece = board.getPieceAt(move.from);
-    if (!movingPiece)
-        return 0;
+    // REMOVED DUPLICATE LINE HERE - movingPiece already declared above
 
     // Create a temporary board with the capture made
     Board tempBoard = board;
@@ -733,6 +731,12 @@ int Engine::getMoveScore(const Move &move, const Board &board, const Move &ttMov
                          const std::vector<Move> &pv, int ply, Color sideToMove,
                          const Move &lastMove) const
 {
+    // CRITICAL: Check for valid moving piece first
+    auto movingPiece = board.getPieceAt(move.from);
+    if (!movingPiece) {
+        return -999999; // Invalid move - heavily penalize
+    }
+
     // 1. Transposition table move
     if (ttMove.from.isValid() && ttMove.to.isValid() &&
         ttMove.from.row == move.from.row && ttMove.from.col == move.from.col &&
@@ -750,16 +754,10 @@ int Engine::getMoveScore(const Move &move, const Board &board, const Move &ttMov
         }
     }
 
-// 3. Captures (scored by MVV-LVA or SEE)
-auto movingPiece = board.getPieceAt(move.from);
-auto capturedPiece = board.getPieceAt(move.to);
+    // 3. Captures (scored by MVV-LVA or SEE)
+    auto capturedPiece = board.getPieceAt(move.to);
 
-// Add null check for moving piece
-if (!movingPiece) {
-    return 0; // Invalid move
-}
-
-if (capturedPiece) {
+    if (capturedPiece) {
         // Calculate Static Exchange Evaluation score
         int seeScore = seeCapture(board, move);
 
@@ -813,8 +811,8 @@ int Engine::quiescenceSearch(Board &board, int alpha, int beta, uint64_t hashKey
 
     // Maximum recursion depth check
     // Maximum recursion depth check for quiescence
-if (ply >= MAX_QSEARCH_DEPTH)
-    return evaluatePosition(board);
+    if (ply >= MAX_QSEARCH_DEPTH)
+        return evaluatePosition(board);
 
     // Stand-pat score (evaluate the current position without making any moves)
     int standPat = evaluatePosition(board);
@@ -896,9 +894,10 @@ if (ply >= MAX_QSEARCH_DEPTH)
             {
                 continue; // Skip this capture - it can't improve alpha
             }
-            
+
             // Additional futility pruning for bad captures
-            if (capturedPiece && seeCapture(board, move) < -50) {
+            if (capturedPiece && seeCapture(board, move) < -50)
+            {
                 continue; // Skip obviously bad captures
             }
         }
@@ -996,13 +995,15 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
         return score; // Return cached result if available (but don't use TT at root)
     }
 
-// Check for search termination conditions
-    if (ply >= MAX_PLY) {
+    // Check for search termination conditions
+    if (ply >= MAX_PLY)
+    {
         return evaluatePosition(board);
     }
 
     // If we've reached the maximum depth, use quiescence search
-    if (depth <= 0) {
+    if (depth <= 0)
+    {
         return quiescenceSearch(board, alpha, beta, hashKey, ply);
     }
 
@@ -1152,7 +1153,7 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
             if (foundPV)
             {
                 // For non-PV moves, try LMR first if applicable
-               if (lmrReduction > 0)
+                if (lmrReduction > 0)
                 {
                     // Search with reduced depth and null window
                     eval = -pvSearch(board, newDepth, -alpha - 1, -alpha, false, childPV, newHashKey, ply + 1, move);
@@ -1300,7 +1301,7 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
             if (foundPV)
             {
                 // For non-PV moves, try LMR first if applicable
-               if (lmrReduction > 0)
+                if (lmrReduction > 0)
                 {
                     // Search with reduced depth and null window
                     eval = -pvSearch(board, newDepth, -beta, -beta + 1, true, childPV, newHashKey, ply + 1, move);

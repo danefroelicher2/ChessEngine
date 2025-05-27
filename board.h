@@ -82,6 +82,12 @@ bool unmakeMove(const Move& move, const BoardState& previousState);
 private:
     // Check if a castling move is legal
     bool canCastle(const Move& move) const;
+
+    // Add these to board.h in the private section:
+bool canPieceAttackSquareAfterMove(std::shared_ptr<Piece> piece, Position piecePos, 
+                                  Position target, const Move& simulatedMove) const;
+bool canPieceAttackSquareSimple(PieceType pieceType, Position from, Position to) const;
+bool isPathClearForMove(Position from, Position to) const;
     
     // Helper to verify king safety after move
     bool wouldBeInCheck(const Move& move, Color kingColor) const;
