@@ -115,6 +115,9 @@ public:
     void resetStats() { nodesSearched = 0; }
 
 private:
+
+// Add to engine.h private members:
+Zobrist zobristHasher;
     // Helper function to get depth adjustment for a move
     int getDepthAdjustment(const Move &move, const Board &board, bool isPVMove, int moveIndex) const;
 

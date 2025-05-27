@@ -2,12 +2,10 @@
 #include "board.h"
 #include <random>
 
-// Initialize static members
-uint64_t Zobrist::pieceKeys[6][2][64];
-uint64_t Zobrist::sideToMoveKey;
-uint64_t Zobrist::castlingKeys[4];
-uint64_t Zobrist::enPassantKeys[8];
-bool Zobrist::initialized = false;
+// Constructor - automatically initializes
+Zobrist::Zobrist() : initialized(false) {
+    initialize();
+}
 
 void Zobrist::initialize() {
     if (initialized) return;

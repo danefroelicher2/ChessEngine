@@ -8,29 +8,32 @@ class Zobrist {
 private:
     // Random keys for pieces at each position
     // [piece_type][color][position]
-    static uint64_t pieceKeys[6][2][64];
+    uint64_t pieceKeys[6][2][64];
     
     // Random key for side to move (when it's black's turn)
-    static uint64_t sideToMoveKey;
+    uint64_t sideToMoveKey;
     
     // Random keys for castling rights
-    static uint64_t castlingKeys[4]; // WK, WQ, BK, BQ
+    uint64_t castlingKeys[4]; // WK, WQ, BK, BQ
     
     // Random keys for en passant files
-    static uint64_t enPassantKeys[8];
+    uint64_t enPassantKeys[8];
     
     // Has this been initialized?
-    static bool initialized;
+    bool initialized;
     
 public:
-    // Initialize all random keys
-    static void initialize();
+    // Constructor - initializes all random keys
+    Zobrist();
+    
+    // Initialize all random keys (called by constructor)
+    void initialize();
     
     // Generate a hash key for a given board position
-    static uint64_t generateHashKey(const Board& board);
+    uint64_t generateHashKey(const Board& board);
     
     // Update a hash key when making a move (faster than regenerating)
-    static uint64_t updateHashKey(uint64_t currentKey, const Move& move, const Board& board);
+    uint64_t updateHashKey(uint64_t currentKey, const Move& move, const Board& board);
 };
 
 #endif // ZOBRIST_H

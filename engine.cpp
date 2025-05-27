@@ -202,8 +202,7 @@ Move Engine::getBestMove()
     transpositionTable.incrementAge();
 
     // Initialize Zobrist hashing
-    Zobrist::initialize();
-    uint64_t hashKey = Zobrist::generateHashKey(board);
+    uint64_t hashKey = zobristHasher.generateHashKey(board);
 
     // Use iterative deepening to find the best move
     return iterativeDeepeningSearch(board, maxDepth, hashKey);
@@ -471,10 +470,11 @@ int Engine::getDepthAdjustment(const Move &move, const Board &board, bool isPVMo
 int Engine::seeCapture(const Board &board, const Move &move) const
 {
     auto movingPiece = board.getPieceAt(move.from);
-    if (!movingPiece) {
+    if (!movingPiece)
+    {
         return 0; // Invalid move - no piece at source
     }
-    
+
     auto capturedPiece = board.getPieceAt(move.to);
     if (!capturedPiece)
     {
@@ -733,7 +733,8 @@ int Engine::getMoveScore(const Move &move, const Board &board, const Move &ttMov
 {
     // CRITICAL: Check for valid moving piece first
     auto movingPiece = board.getPieceAt(move.from);
-    if (!movingPiece) {
+    if (!movingPiece)
+    {
         return -999999; // Invalid move - heavily penalize
     }
 
@@ -757,7 +758,8 @@ int Engine::getMoveScore(const Move &move, const Board &board, const Move &ttMov
     // 3. Captures (scored by MVV-LVA or SEE)
     auto capturedPiece = board.getPieceAt(move.to);
 
-    if (capturedPiece) {
+    if (capturedPiece)
+    {
         // Calculate Static Exchange Evaluation score
         int seeScore = seeCapture(board, move);
 
@@ -951,7 +953,7 @@ int Engine::quiescenceSearch(Board &board, int alpha, int beta, uint64_t hashKey
         BoardState previousState;
 
         // Calculate new hash key BEFORE making the move
-        uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
+        uint64_t newHashKey = zobristHasher.updateHashKey(hashKey, move, board);
 
         // Make the move
         if (!board.makeMove(move, previousState))
@@ -1144,7 +1146,7 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
             newDepth = std::max(0, newDepth);
 
             // Calculate the new hash key after the move
-            uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
+            uint64_t newHashKey = zobristHasher.updateHashKey(hashKey, move, board);
 
             // Recursively evaluate the position
             childPV.clear();
@@ -1292,7 +1294,7 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
             newDepth = std::max(0, newDepth);
 
             // Calculate the new hash key after the move
-            uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
+            uint64_t newHashKey = zobristHasher.updateHashKey(hashKey, move, board);
 
             // Recursively evaluate the position
             childPV.clear();
@@ -1480,7 +1482,7 @@ int Engine::alphaBeta(Board &board, int depth, int alpha, int beta, bool maximiz
             BoardState previousState;
 
             // Calculate new hash key BEFORE making the move
-            uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
+            uint64_t newHashKey = zobristHasher.updateHashKey(hashKey, move, board);
 
             // Make the move
             if (!board.makeMove(move, previousState))
@@ -1551,7 +1553,7 @@ int Engine::alphaBeta(Board &board, int depth, int alpha, int beta, bool maximiz
             BoardState previousState;
 
             // Calculate new hash key BEFORE making the move
-            uint64_t newHashKey = Zobrist::updateHashKey(hashKey, move, board);
+            uint64_t newHashKey = zobristHasher.updateHashKey(hashKey, move, board);
 
             // Make the move
             if (!board.makeMove(move, previousState))
