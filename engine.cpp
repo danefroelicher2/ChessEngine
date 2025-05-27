@@ -320,38 +320,31 @@ Move Engine::iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashK
 
         std::cout << ", PV: " << getPVString() << std::endl;
 
-        // Time management check
-        if (timeManaged && timeAllocated > 0)
-        {
+       // Time management check - decide whether to continue to next depth
+        if (timeManaged && timeAllocated > 0) {
             int timeUsed = duration.count();
 
             // Calculate adjusted time allocation based on position stability
             int adjustedTimeAllocation = timeAllocated;
-            if (positionIsUnstable)
-            {
+            if (positionIsUnstable) {
                 adjustedTimeAllocation += (timeAllocated * unstableExtensionPercent) / 100;
-                std::cout << "Extending time allocation to " << adjustedTimeAllocation
-                          << "ms due to position instability" << std::endl;
             }
 
             // Stop if we've used most of our time
-            if (timeUsed >= adjustedTimeAllocation - timeBuffer)
-            {
+            if (timeUsed >= adjustedTimeAllocation - timeBuffer) {
                 std::cout << "Stopping search due to time limit. Time used: "
                           << timeUsed << "ms" << std::endl;
                 break;
             }
 
-            // Estimate time for next iteration
-            if (nodesThisIteration > 0 && depth > 1)
-            {
-                double branchingFactor = 4.0; // Conservative estimate
-                long estimatedNodesNext = nodesThisIteration * branchingFactor;
+            // Estimate time for next iteration: typically 4-5x more nodes required
+            if (nodesThisIteration > 0 && depth > 1) {
+                double branchingFactor = 4.5; // Conservative estimate
+                long estimatedNodesNext = static_cast<long>(nodesThisIteration * branchingFactor);
                 double estimatedTimeNext = (double)timeUsed * estimatedNodesNext / nodesThisIteration;
 
                 // If we estimate we'll exceed our time allocation, stop now
-                if (timeUsed + estimatedTimeNext + timeBuffer > adjustedTimeAllocation)
-                {
+                if (timeUsed + estimatedTimeNext + timeBuffer > adjustedTimeAllocation) {
                     std::cout << "Stopping search due to time estimation. Time used: "
                               << timeUsed << "ms, Estimated for next: "
                               << estimatedTimeNext << "ms" << std::endl;
@@ -694,7 +687,7 @@ int Engine::getMoveScore(const Move &move, const Board &board, const Move &ttMov
         ttMove.from.row == move.from.row && ttMove.from.col == move.from.col &&
         ttMove.to.row == move.to.row && ttMove.to.col == move.to.col)
     {
-        return 10000000;
+        return 1000000;
     }
 
     // 2. Principal variation move - check from multiple depths
@@ -702,7 +695,7 @@ int Engine::getMoveScore(const Move &move, const Board &board, const Move &ttMov
     {
         if (isPVMove(move, d, ply))
         {
-            return 9000000 + d * 1000; // PV moves from deeper searches get higher priority
+            return 900000 + d * 1000; // PV moves from deeper searches get higher priority
         }
     }
 
@@ -718,12 +711,12 @@ int Engine::getMoveScore(const Move &move, const Board &board, const Move &ttMov
         // If it's a good capture (positive SEE)
         if (seeScore > 0)
         {
-            return 4000000 + seeScore;
+            return 400000 + seeScore;
         }
         // Still prioritize captures, but lower than good captures
         else
         {
-            return 3000000 + getMVVLVAScore(movingPiece->getType(), capturedPiece->getType());
+            return 300000 + getMVVLVAScore(movingPiece->getType(), capturedPiece->getType());
         }
     }
 
