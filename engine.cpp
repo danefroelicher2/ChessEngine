@@ -121,7 +121,7 @@ void Engine::clearHistoryTable()
     }
 }
 
-// Calculate Late Move Reduction amount
+// Fixed LMR reduction calculation
 int Engine::calculateLMRReduction(int depth, int moveIndex, bool foundPV, bool isCapture, 
                                  bool isCheck, bool isKillerMove) const {
     // Don't reduce if depth is too shallow
@@ -134,9 +134,9 @@ int Engine::calculateLMRReduction(int depth, int moveIndex, bool foundPV, bool i
         return 0;
     }
     
-    // Don't reduce PV moves (this is handled by foundPV parameter)
+    // Don't reduce the PV move (first move when foundPV is false)
     if (!foundPV) {
-        return 0;
+        return 0;  // This is the PV move, don't reduce
     }
     
     // Don't reduce captures, checks, or killer moves
@@ -145,9 +145,8 @@ int Engine::calculateLMRReduction(int depth, int moveIndex, bool foundPV, bool i
     }
     
     // Calculate base reduction using logarithmic formula
-    // R = base_reduction + log(depth) * log(moveNumber) / constant
     double logDepth = std::log(static_cast<double>(depth));
-    double logMoveIndex = std::log(static_cast<double>(moveIndex + 1)); // +1 to avoid log(0)
+    double logMoveIndex = std::log(static_cast<double>(moveIndex + 1));
     
     double reduction = LMR_BASE_REDUCTION + 
                       (logDepth * LMR_DEPTH_FACTOR) + 
@@ -357,16 +356,20 @@ Move Engine::iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashK
             std::cout << ", NPS: " << static_cast<long>(nodesSearched * 1000.0 / duration.count());
         }
 
+       // REPLACE the time management section in iterativeDeepeningSearch() with this:
+
         std::cout << ", PV: " << getPVString() << std::endl;
 
-       // Time management check - decide whether to continue to next depth
-       if (timeManaged && timeAllocated > 0) {
+        // Time management check - decide whether to continue to next depth
+        if (timeManaged && timeAllocated > 0) {
             int timeUsed = duration.count();
 
             // Calculate adjusted time allocation based on position stability
             int adjustedTimeAllocation = timeAllocated;
             if (positionIsUnstable) {
                 adjustedTimeAllocation += (timeAllocated * unstableExtensionPercent) / 100;
+                std::cout << "Extending time allocation to " << adjustedTimeAllocation
+                          << "ms due to position instability" << std::endl;
             }
 
             // Stop if we've used most of our time
@@ -390,36 +393,13 @@ Move Engine::iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashK
                     break;
                 }
             }
-       }
-
-        // Calculate adjusted time allocation based on position stability
-        int adjustedTimeAllocation = timeAllocated;
-        if (positionIsUnstable)
-        {
-            adjustedTimeAllocation += (timeAllocated * unstableExtensionPercent) / 100;
-            std::cout << "Extending time allocation to " << adjustedTimeAllocation
-                      << "ms due to position instability" << std::endl;
-        }
-
-        // Estimate time for next iteration: typically 4-5x more nodes required
-        if (nodesThisIteration > 0)
-        {
-            long estimatedNodesNext = nodesThisIteration * 4.5;
-            double estimatedTimeNext = (double)timeUsed * estimatedNodesNext / nodesThisIteration;
-
-            // If we estimate we'll exceed our adjusted time allocation for the next iteration, stop now
-            if (timeUsed + estimatedTimeNext + timeBuffer > adjustedTimeAllocation)
-            {
-                std::cout << "Stopping search due to time constraints. Time used: "
-                          << timeUsed << "ms, Estimated for next: "
-                          << estimatedTimeNext << "ms" << std::endl;
-                break;
-            }
         }
     }
 
-return bestMove;
+    return bestMove;
 }
+
+// DELETE the duplicate time management code that comes after this (around 20-30 lines)
 
 // Get the principal variation as a string
 std::string Engine::getPVString() const
@@ -497,56 +477,56 @@ int Engine::seeCapture(const Board &board, const Move &move) const
     return captureValue - see(board, move.to, movingPiece->getColor(), getPieceValue(movingPiece->getType()));
 }
 
-// Recursive SEE function
-int Engine::see(const Board &board, const Position &square, Color side, int captureValue) const
-{
-    // Find the least valuable attacker of the opposite color
-    auto leastValuableAttacker = Position();
-    int leastValuableAttackerValue = 100000;
-    PieceType leastValuableAttackerType = PieceType::NONE;
-
-    for (int row = 0; row < 8; row++)
-    {
-        for (int col = 0; col < 8; col++)
-        {
+// Static Exchange Evaluation - simulates a sequence of captures on a square
+int Engine::see(const Board& board, const Position& square, Color side, int captureValue) const {
+    // Find all attackers of the given square, sorted by piece value (least valuable first)
+    std::vector<std::pair<int, Position>> attackers;
+    
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
             Position pos(row, col);
             auto piece = board.getPieceAt(pos);
-
-            if (piece && piece->getColor() != side)
-            {
-                // Check if this piece can capture the target
+            
+            if (piece && piece->getColor() != side) {
+                // Check if this piece can attack the target square
                 auto moves = piece->getLegalMoves(board);
-
-                for (const auto &move : moves)
-                {
-                    if (move.to == square)
-                    {
+                
+                for (const auto& move : moves) {
+                    if (move.to == square) {
                         int pieceValue = getPieceValue(piece->getType());
-
-                        if (pieceValue < leastValuableAttackerValue)
-                        {
-                            leastValuableAttackerValue = pieceValue;
-                            leastValuableAttacker = pos;
-                            leastValuableAttackerType = piece->getType();
-                        }
-
-                        break;
+                        attackers.emplace_back(pieceValue, pos);
+                        break; // Only need to know it can attack, not how many ways
                     }
                 }
             }
         }
     }
-
-    // If no attacker found, the previous capture was the end of the sequence
-    if (leastValuableAttackerType == PieceType::NONE)
-    {
+    
+    // If no attackers, the previous capture stands
+    if (attackers.empty()) {
         return 0;
     }
-
-    // Recursive SEE if there are more captures
-    int score = captureValue - see(board, square, (side == Color::WHITE) ? Color::BLACK : Color::WHITE, leastValuableAttackerValue);
-
-    return std::max(0, score); // Don't make a capture if it's worse than doing nothing
+    
+    // Sort attackers by piece value (least valuable first for optimal play)
+    std::sort(attackers.begin(), attackers.end());
+    
+    // Take the least valuable attacker
+    int attackerValue = attackers[0].first;
+    
+    // Create a temporary board to simulate the capture
+    Board tempBoard = board;
+    
+    // Remove the attacking piece and place it on the target square
+    tempBoard.setPieceAt(attackers[0].second, nullptr);
+    auto attackingPiece = board.getPieceAt(attackers[0].second);
+    tempBoard.setPieceAt(square, attackingPiece);
+    
+    // Recursively calculate the score if the opponent recaptures
+    // Note: we flip the side and negate the result
+    int opponentResponse = see(tempBoard, square, (side == Color::WHITE) ? Color::BLACK : Color::WHITE, attackerValue);
+    
+    // The score is: what we capture minus what the opponent gets back
+    return std::max(0, captureValue - opponentResponse);
 }
 
 // Get the approximate value of a piece for SEE
