@@ -218,6 +218,10 @@ bool UI::processCommand(const std::string &command)
     {
         newGame();
     }
+    else if (command == "perft")
+    {
+        runPerftTests();
+    }
     else if (command == "new black")
     {
         newGame(false);
@@ -405,5 +409,3 @@ void UI::displayHelp() const
     std::cout << "For example: e2e4 moves the piece from e2 to e4." << std::endl;
     std::cout << "For pawn promotion, add q, r, b, or n at the end." << std::endl;
     std::cout << "For example: e7e8q promotes to a queen." << std::endl;
-
-   
