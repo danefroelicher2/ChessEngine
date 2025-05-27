@@ -18,7 +18,10 @@ void UI::newGameFromFEN(const std::string &fen, bool playerPlaysWhite)
     gameActive = true;
     printGame();
 }
-
+void UI::runTacticalTests()
+{
+    TacticalTester::runTestSuite(engine);
+}
 void UI::run()
 {
     std::cout << "Welcome to the Chess Engine!" << std::endl;
@@ -201,6 +204,10 @@ bool UI::processCommand(const std::string &command)
     {
         displayHelp();
     }
+    else if (command == "test" || command == "tactics")
+    {
+        runTacticalTests();
+    }
     else if (command == "new")
     {
         newGame();
@@ -357,6 +364,7 @@ void UI::displayHelp() const
     std::cout << "  ttsize [n]     - Set the transposition table size to n MB" << std::endl;
     std::cout << "  cleartt        - Clear the transposition table" << std::endl;
     std::cout << "  quit/exit      - Exit the program" << std::endl;
+    std::cout << "  test/tactics   - Run tactical test suite" << std::endl;
     std::cout << std::endl;
     std::cout << "  perft          - Run perft test suite" << std::endl;
     std::cout << "  perft [n]      - Run perft to depth n on current position" << std::endl;

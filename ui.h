@@ -4,6 +4,7 @@
 #include "main.h"
 #include "game.h"
 #include "engine.h"
+#include "tactical_tests.h"
 
 class UI
 {
@@ -31,6 +32,7 @@ private:
 
     // Add this line in the private section
     void runPerftTests();
+    void runTacticalTests();
 
     // Get a move from the player
     Move getPlayerMove() const;
