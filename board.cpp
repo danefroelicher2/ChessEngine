@@ -378,29 +378,40 @@ if (!moveFound) {
     // Save the original piece type for undoing promotions
     previousState.originalType = piece->getType();
     
-    // Handle pawn promotion
-    if (isPawnMove && (move.to.row == 0 || move.to.row == 7) && move.promotion != PieceType::NONE) {
-        previousState.wasPromotion = true;
-        
-        switch (move.promotion) {
-            case PieceType::QUEEN:
-                piece = std::make_shared<Queen>(sideToMove, move.to);
-                break;
-            case PieceType::ROOK:
-                piece = std::make_shared<Rook>(sideToMove, move.to);
-                break;
-            case PieceType::BISHOP:
-                piece = std::make_shared<Bishop>(sideToMove, move.to);
-                break;
-            case PieceType::KNIGHT:
-                piece = std::make_shared<Knight>(sideToMove, move.to);
-                break;
-            default:
-                // Default to queen if no promotion specified
-                piece = std::make_shared<Queen>(sideToMove, move.to);
-                break;
+// Handle pawn promotion
+        if (isPawnMove && (move.to.row == 0 || move.to.row == 7) && move.promotion != PieceType::NONE) {
+            previousState.wasPromotion = true;
+            
+            switch (move.promotion) {
+                case PieceType::QUEEN:
+                    piece = std::make_shared<Queen>(sideToMove, move.to);
+                    break;
+                case PieceType::ROOK:
+                    piece = std::make_shared<Rook>(sideToMove, move.to);
+                    break;
+                case PieceType::BISHOP:
+                    piece = std::make_shared<Bishop>(sideToMove, move.to);
+                    break;
+                case PieceType::KNIGHT:
+                    piece = std::make_shared<Knight>(sideToMove, move.to);
+                    break;
+                case PieceType::KING:  // Add this case for completeness
+                    {
+                        auto king = std::make_shared<King>(sideToMove, move.to);
+                        piece = king;
+                        if (sideToMove == Color::WHITE) {
+                            whiteKing = king;
+                        } else {
+                            blackKing = king;
+                        }
+                    }
+                    break;
+                default:
+                    // Default to queen if no promotion specified
+                    piece = std::make_shared<Queen>(sideToMove, move.to);
+                    break;
+            }
         }
-    }
 
    // Update castling rights if king or rook moves
     if (piece->getType() == PieceType::KING) {
