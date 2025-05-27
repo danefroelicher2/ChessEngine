@@ -467,56 +467,43 @@ if (isPawnMove && move.to == enPassantTarget && enPassantTarget.isValid()) {
 auto originalPiece = getPieceAt(move.from);
 PieceType originalPieceType = originalPiece->getType();
 
-// Handle pawn promotion with proper memory management
-if (isPawnMove && (move.to.row == 0 || move.to.row == 7) && move.promotion != PieceType::NONE) {
+// Handle pawn promotion - FIXED memory safety
+if (isPawnMove && (move.to.row == 0 || move.to.row == 7)) {
+    // Default to queen if no promotion specified (should not happen in normal play)
+    PieceType promotionType = (move.promotion != PieceType::NONE) ? move.promotion : PieceType::QUEEN;
+    
+    // Validate promotion type (only allow legal promotions)
+    if (promotionType != PieceType::QUEEN && promotionType != PieceType::ROOK && 
+        promotionType != PieceType::BISHOP && promotionType != PieceType::KNIGHT) {
+        promotionType = PieceType::QUEEN; // Default to queen for invalid types
+    }
+    
     previousState.wasPromotion = true;
     
-    // Clear the old piece reference before creating new one
-    std::shared_ptr<Piece> newPiece = nullptr;
+    // Create new piece - no try/catch needed, shared_ptr handles this safely
+    std::shared_ptr<Piece> newPiece;
     
-    try {
-        switch (move.promotion) {
-            case PieceType::QUEEN:
-                newPiece = std::make_shared<Queen>(sideToMove, move.to);
-                break;
-            case PieceType::ROOK:
-                newPiece = std::make_shared<Rook>(sideToMove, move.to);
-                break;
-            case PieceType::BISHOP:
-                newPiece = std::make_shared<Bishop>(sideToMove, move.to);
-                break;
-            case PieceType::KNIGHT:
-                newPiece = std::make_shared<Knight>(sideToMove, move.to);
-                break;
-            default:
-                // Validate promotion piece type
-                newPiece = std::make_shared<Queen>(sideToMove, move.to);
-                break;
-        }
-        
-        // Only assign if creation was successful
-        if (newPiece) {
-            piece = newPiece;
-            
-            // Update king pointers if promoting to king (should never happen in normal chess)
-            if (move.promotion == PieceType::KING) {
-                auto king = std::dynamic_pointer_cast<King>(piece);
-                if (king) {
-                    if (sideToMove == Color::WHITE) {
-                        whiteKing = king;
-                    } else {
-                        blackKing = king;
-                    }
-                }
-            }
-        } else {
-            // Fallback: keep original piece if promotion failed
-            return false;
-        }
-    } catch (const std::exception& e) {
-        // Handle memory allocation failure gracefully
-        return false;
+    switch (promotionType) {
+        case PieceType::QUEEN:
+            newPiece = std::make_shared<Queen>(sideToMove, move.from); // Use move.from initially
+            break;
+        case PieceType::ROOK:
+            newPiece = std::make_shared<Rook>(sideToMove, move.from);
+            break;
+        case PieceType::BISHOP:
+            newPiece = std::make_shared<Bishop>(sideToMove, move.from);
+            break;
+        case PieceType::KNIGHT:
+            newPiece = std::make_shared<Knight>(sideToMove, move.from);
+            break;
+        default:
+            newPiece = std::make_shared<Queen>(sideToMove, move.from);
+            break;
     }
+    
+    // Safe assignment - the old piece will be automatically cleaned up
+    piece = newPiece;
+    // Position will be updated when we call setPieceAt(move.to, piece) later
 }
 
 // Update castling rights based on ORIGINAL piece movement (MOVED OUTSIDE PROMOTION BLOCK)
@@ -565,30 +552,27 @@ if (previousState.capturedPiece && previousState.capturedPiece->getType() == Pie
     }
 }
 
-// Make the move (this should come AFTER promotion handling)
+// CRITICAL FIX: Validate king safety BEFORE making irreversible changes
+if (wouldBeInCheck(move, sideToMove)) {
+    return false; // Invalid move - would leave king in check
+}
+
+// Now make the move (we know it's safe)
 setPieceAt(move.from, nullptr);
 setPieceAt(move.to, piece);
 
 // Mark the piece as moved
 piece->setMoved();
     
-    // Update fullmove number
-    if (sideToMove == Color::BLACK) {
-        fullMoveNumber++;
-    }
-    
- // Final validation - check if the move would leave the king in check
-    if (wouldBeInCheck(move, previousState.sideToMove)) {
-        // Undo all changes made so far
-        unmakeMove(move, previousState);
-        return false;
-    }
-    
-    // Switch side to move
-    switchSideToMove();
-    
-    return true;
+// Update fullmove number
+if (sideToMove == Color::BLACK) {
+    fullMoveNumber++;
 }
+
+// Switch side to move
+switchSideToMove();
+
+return true;
 
 // Implementation of unmakeMove
 bool Board::unmakeMove(const Move& move, const BoardState& previousState) {
