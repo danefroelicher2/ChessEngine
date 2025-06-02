@@ -377,27 +377,146 @@ bool Engine::isPVMove(const Move &move, int depth, int ply) const
             pvMove.to.col == move.to.col);
 }
 
-// Get the best move for the current position
 Move Engine::getBestMove()
 {
-    // Reset search statistics
-    resetStats();
-    // CRITICAL FIX: Reset search flags at start of new search
-searchShouldStop.store(false);
-timeManagementActive.store(timeManaged);
-    searchStartTime = std::chrono::high_resolution_clock::now();
-
-    // Get a copy of the board
-    Board board = game.getBoard();
-
-    // Increment transposition table age
-    transpositionTable.incrementAge();
-
-    // Initialize Zobrist hashing
-    uint64_t hashKey = zobristHasher.generateHashKey(board);
-
-    // Use iterative deepening to find the best move
-    return iterativeDeepeningSearch(board, maxDepth, hashKey);
+    try {
+        // STEP 1: Validate game state before search
+        if (game.isGameOver()) {
+            std::cerr << "Warning: Cannot search - game is already over" << std::endl;
+            return Move(Position(), Position()); // Return invalid move
+        }
+        
+        // STEP 2: Get current board state safely
+        Board board;
+        try {
+            board = game.getBoard();
+        } catch (const std::exception& e) {
+            std::cerr << "Error: Cannot get board state: " << e.what() << std::endl;
+            return Move(Position(), Position());
+        }
+        
+        // STEP 3: Validate we have legal moves
+        std::vector<Move> legalMoves;
+        try {
+            legalMoves = board.generateLegalMoves();
+        } catch (const std::exception& e) {
+            std::cerr << "Error: Cannot generate legal moves: " << e.what() << std::endl;
+            return Move(Position(), Position());
+        }
+        
+        if (legalMoves.empty()) {
+            std::cerr << "Warning: No legal moves available" << std::endl;
+            return Move(Position(), Position());
+        }
+        
+        // STEP 4: If only one legal move, return it immediately (no need to search)
+        if (legalMoves.size() == 1) {
+            std::cout << "Only one legal move available: " << legalMoves[0].toString() << std::endl;
+            return legalMoves[0];
+        }
+        
+        // STEP 5: Validate search parameters
+        if (maxDepth <= 0) {
+            std::cerr << "Warning: Invalid search depth " << maxDepth << ", using depth 1" << std::endl;
+            maxDepth = 1;
+        }
+        
+        if (maxDepth > 20) {
+            std::cerr << "Warning: Very deep search requested (" << maxDepth << "), clamping to 15" << std::endl;
+            maxDepth = 15;
+        }
+        
+        // STEP 6: Reset search statistics safely
+        try {
+            resetStats();
+            searchShouldStop.store(false);
+            timeManagementActive.store(timeManaged);
+            searchStartTime = std::chrono::high_resolution_clock::now();
+        } catch (const std::exception& e) {
+            std::cerr << "Error: Cannot initialize search: " << e.what() << std::endl;
+            return legalMoves[0]; // Return first legal move as fallback
+        }
+        
+        // STEP 7: Initialize Zobrist hashing safely
+        uint64_t hashKey = 0;
+        try {
+            transpositionTable.incrementAge();
+            hashKey = zobristHasher.generateHashKey(board);
+        } catch (const std::exception& e) {
+            std::cerr << "Warning: Hash initialization failed: " << e.what() << std::endl;
+            hashKey = 0; // Continue without hashing
+        }
+        
+        // STEP 8: Perform search with error handling
+        Move bestMove;
+        try {
+            bestMove = iterativeDeepeningSearch(board, maxDepth, hashKey);
+        } catch (const std::exception& e) {
+            std::cerr << "Error during search: " << e.what() << std::endl;
+            std::cerr << "Falling back to first legal move" << std::endl;
+            return legalMoves[0];
+        } catch (...) {
+            std::cerr << "Unknown error during search" << std::endl;
+            std::cerr << "Falling back to first legal move" << std::endl;
+            return legalMoves[0];
+        }
+        
+        // STEP 9: Validate returned move
+        if (!bestMove.from.isValid() || !bestMove.to.isValid()) {
+            std::cerr << "Warning: Search returned invalid move, using fallback" << std::endl;
+            return legalMoves[0];
+        }
+        
+        // STEP 10: Verify the returned move is actually legal
+        bool moveIsLegal = false;
+        for (const auto& legalMove : legalMoves) {
+            if (legalMove.from == bestMove.from && 
+                legalMove.to == bestMove.to &&
+                legalMove.promotion == bestMove.promotion) {
+                moveIsLegal = true;
+                break;
+            }
+        }
+        
+        if (!moveIsLegal) {
+            std::cerr << "Error: Search returned illegal move " << bestMove.toString() << std::endl;
+            std::cerr << "Falling back to first legal move: " << legalMoves[0].toString() << std::endl;
+            return legalMoves[0];
+        }
+        
+        std::cout << "Search completed successfully. Best move: " << bestMove.toString() << std::endl;
+        return bestMove;
+        
+    } catch (const std::exception& e) {
+        std::cerr << "Critical error in getBestMove(): " << e.what() << std::endl;
+        
+        // STEP 11: Emergency fallback - try to return ANY legal move
+        try {
+            auto emergencyMoves = game.getBoard().generateLegalMoves();
+            if (!emergencyMoves.empty()) {
+                std::cerr << "Emergency fallback: returning " << emergencyMoves[0].toString() << std::endl;
+                return emergencyMoves[0];
+            }
+        } catch (...) {
+            std::cerr << "Complete failure - cannot even generate emergency move" << std::endl;
+        }
+        
+        return Move(Position(), Position()); // Complete failure
+    } catch (...) {
+        std::cerr << "Unknown critical error in getBestMove()" << std::endl;
+        
+        // Try emergency fallback
+        try {
+            auto emergencyMoves = game.getBoard().generateLegalMoves();
+            if (!emergencyMoves.empty()) {
+                return emergencyMoves[0];
+            }
+        } catch (...) {
+            // Give up
+        }
+        
+        return Move(Position(), Position());
+    }
 }
 
 // Iterative deepening search

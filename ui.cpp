@@ -200,202 +200,228 @@ Move UI::getEngineMove()
     return engine.getBestMove();
 }
 
+
 bool UI::processCommand(const std::string &command)
 {
-    if (command == "quit" || command == "exit")
-    {
-        gameActive = false;
-        return false;
-    }
-    else if (command == "help")
-    {
-        displayHelp();
-    }
-    else if (command == "test" || command == "tactics")
-    {
-        runTacticalTests();
-    }
-    else if (command == "new")
-    {
-        newGame();
-    }
-    else if (command == "perft")
-{
-    std::cout << "Running enhanced perft test suite..." << std::endl;
-    PerftTester::runTestSuite();
-}
-else if (command == "perft basic")
-{
-    std::cout << "Running basic perft tests..." << std::endl;
-    runPerftTests(); // Keep the old method available
-}
-    else if (command == "new black")
-    {
-        newGame(false);
-    }
-    else if (command.substr(0, 4) == "fen ")
-{
-    std::string fenString = command.substr(4);
-    if (fenString.empty()) {
-        std::cout << "Error: No FEN string provided. Usage: fen <fen-string>" << std::endl;
-        std::cout << "Example: fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" << std::endl;
-    } else {
-        std::cout << "Loading FEN: " << fenString << std::endl;
-        newGameFromFEN(fenString);
-    }
-}
-    else if (command == "print")
-    {
-        printGame();
-    }
-    else if (command == "undo")
-    {
-        if (game.undoMove())
-        {
-            // Undo twice if playing against the engine
-            if (!game.isGameOver() && !isPlayerTurn())
-            {
-                game.undoMove();
-            }
-            printGame();
+    try {
+        // STEP 1: Basic input validation
+        if (command.empty()) {
+            return true; // Ignore empty commands silently
         }
-        else
-        {
-            std::cout << "Cannot undo move!" << std::endl;
+        
+        // STEP 2: Trim whitespace and validate
+        std::string trimmedCommand = command;
+        // Remove leading/trailing whitespace
+        size_t start = trimmedCommand.find_first_not_of(" \t\n\r");
+        if (start == std::string::npos) {
+            return true; // Only whitespace
         }
-    }
-    else if (command == "resign")
-    {
-        if (playerIsWhite)
-        {
-            game.endInDrawByAgreement();
+        size_t end = trimmedCommand.find_last_not_of(" \t\n\r");
+        trimmedCommand = trimmedCommand.substr(start, end - start + 1);
+        
+        // STEP 3: Log command for debugging (optional)
+        // std::cout << "Processing command: '" << trimmedCommand << "'" << std::endl;
+        
+        // STEP 4: Process commands with individual error handling
+        if (trimmedCommand == "quit" || trimmedCommand == "exit") {
+            gameActive = false;
+            return false;
         }
-        else
-        {
-            game.endInDrawByAgreement();
-        }
-    }
-    else if (command == "draw")
-    {
-        game.endInDrawByAgreement();
-    }
-    else if (command.substr(0, 6) == "depth ")
-    {
-        try
-        {
-            int depth = std::stoi(command.substr(6));
-            if (depth > 0)
-            {
-                engine.setDepth(depth);
-                std::cout << "Engine search depth set to " << depth << std::endl;
-            }
-            else
-            {
-                std::cout << "Invalid depth!" << std::endl;
+        else if (trimmedCommand == "help") {
+            try {
+                displayHelp();
+            } catch (const std::exception& e) {
+                std::cerr << "Error displaying help: " << e.what() << std::endl;
             }
         }
-        catch (const std::exception &e)
-        {
-            std::cout << "Invalid depth!" << std::endl;
-        }
-    }
-    else if (command.substr(0, 7) == "ttsize ")
-    {
-        try
-        {
-            int sizeMB = std::stoi(command.substr(7));
-            if (sizeMB > 0)
-            {
-                engine.setTTSize(sizeMB);
-                std::cout << "Transposition table size set to " << sizeMB << " MB" << std::endl;
-            }
-            else
-            {
-                std::cout << "Invalid size!" << std::endl;
+        else if (trimmedCommand == "test" || trimmedCommand == "tactics") {
+            try {
+                std::cout << "Running tactical test suite..." << std::endl;
+                runTacticalTests();
+            } catch (const std::exception& e) {
+                std::cerr << "Error running tactical tests: " << e.what() << std::endl;
             }
         }
-        catch (const std::exception &e)
-        {
-            std::cout << "Invalid size!" << std::endl;
-        }
-    }
-    else if (command == "cleartt")
-    {
-        engine.clearTT();
-        std::cout << "Transposition table cleared" << std::endl;
-    }
-   else if (command == "perft")
-{
-    std::cout << "Running enhanced perft test suite..." << std::endl;
-    PerftTester::runTestSuite();
-}
-else if (command == "perft basic")
-{
-    std::cout << "Running basic perft tests..." << std::endl;
-    runPerftTests(); // Keep the old method available
-}
-    else if (command.substr(0, 5) == "time ")
-    {
-        try
-        {
-            int timeMs = std::stoi(command.substr(5));
-            if (timeMs > 0)
-            {
-                engine.setTimeForMove(timeMs);
-                std::cout << "Time per move set to " << timeMs << " milliseconds" << std::endl;
-            }
-            else
-            {
-                std::cout << "Invalid time!" << std::endl;
+        else if (trimmedCommand == "new") {
+            try {
+                newGame();
+            } catch (const std::exception& e) {
+                std::cerr << "Error starting new game: " << e.what() << std::endl;
             }
         }
-        catch (const std::exception &e)
-        {
-            std::cout << "Invalid time!" << std::endl;
-        }
-    }
-    else if (command == "time off")
-    {
-        engine.setTimeManagement(false);
-        std::cout << "Time management disabled" << std::endl;
-    }
-    else if (command.substr(0, 6) == "perft ")
-    {
-        try
-        {
-            int depth = std::stoi(command.substr(6));
-            if (depth > 0 && depth <= 6)
-            {
-                Board board = game.getBoard();
-                PerftTester::perftDivide(board, depth);
-            }
-            else
-            {
-                std::cout << "Perft depth must be between 1 and 6!" << std::endl;
+        else if (trimmedCommand == "perft") {
+            try {
+                std::cout << "Running enhanced perft test suite..." << std::endl;
+                PerftTester::runTestSuite();
+            } catch (const std::exception& e) {
+                std::cerr << "Error running perft tests: " << e.what() << std::endl;
             }
         }
-        catch (const std::exception &e)
-        {
-            std::cout << "Invalid perft depth!" << std::endl;
+        else if (trimmedCommand == "perft basic") {
+            try {
+                std::cout << "Running basic perft tests..." << std::endl;
+                runPerftTests();
+            } catch (const std::exception& e) {
+                std::cerr << "Error running basic perft tests: " << e.what() << std::endl;
+            }
         }
-    }
-    else
-    {
-        // Try to interpret the command as a move
-        if (isPlayerTurn())
-        {
-            if (game.makeMove(command))
-            {
+        else if (trimmedCommand == "new black") {
+            try {
+                newGame(false);
+            } catch (const std::exception& e) {
+                std::cerr << "Error starting new game as black: " << e.what() << std::endl;
+            }
+        }
+        else if (trimmedCommand.substr(0, 4) == "fen ") {
+            try {
+                std::string fenString = trimmedCommand.substr(4);
+                if (fenString.empty()) {
+                    std::cout << "Error: No FEN string provided. Usage: fen <fen-string>" << std::endl;
+                    std::cout << "Example: fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" << std::endl;
+                } else {
+                    std::cout << "Loading FEN: " << fenString << std::endl;
+                    newGameFromFEN(fenString);
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "Error loading FEN position: " << e.what() << std::endl;
+            }
+        }
+        else if (trimmedCommand == "print") {
+            try {
                 printGame();
-            }
-            else
-            {
-                std::cout << "Invalid move! Type 'help' for assistance." << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "Error printing game: " << e.what() << std::endl;
             }
         }
+        else if (trimmedCommand == "undo") {
+            try {
+                if (game.undoMove()) {
+                    // Undo twice if playing against the engine (undo both player and engine moves)
+                    if (!game.isGameOver() && !isPlayerTurn()) {
+                        game.undoMove();
+                    }
+                    printGame();
+                } else {
+                    std::cout << "Cannot undo move!" << std::endl;
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "Error undoing move: " << e.what() << std::endl;
+            }
+        }
+        else if (trimmedCommand == "resign") {
+            try {
+                game.endInDrawByAgreement(); // For now, treat resign as draw
+                std::cout << "Game ended by resignation." << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "Error resigning: " << e.what() << std::endl;
+            }
+        }
+        else if (trimmedCommand == "draw") {
+            try {
+                game.endInDrawByAgreement();
+                std::cout << "Game ended by draw agreement." << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "Error offering draw: " << e.what() << std::endl;
+            }
+        }
+        else if (trimmedCommand.substr(0, 6) == "depth ") {
+            try {
+                int depth = std::stoi(trimmedCommand.substr(6));
+                if (depth > 0 && depth <= 20) {
+                    engine.setDepth(depth);
+                    std::cout << "Engine search depth set to " << depth << std::endl;
+                } else {
+                    std::cout << "Invalid depth! Must be between 1 and 20." << std::endl;
+                }
+            } catch (const std::exception& e) {
+                std::cout << "Invalid depth format! Usage: depth <number>" << std::endl;
+            }
+        }
+        else if (trimmedCommand.substr(0, 7) == "ttsize ") {
+            try {
+                int sizeMB = std::stoi(trimmedCommand.substr(7));
+                if (sizeMB > 0 && sizeMB <= 2048) {
+                    engine.setTTSize(sizeMB);
+                    std::cout << "Transposition table size set to " << sizeMB << " MB" << std::endl;
+                } else {
+                    std::cout << "Invalid size! Must be between 1 and 2048 MB." << std::endl;
+                }
+            } catch (const std::exception& e) {
+                std::cout << "Invalid size format! Usage: ttsize <megabytes>" << std::endl;
+            }
+        }
+        else if (trimmedCommand == "cleartt") {
+            try {
+                engine.clearTT();
+                std::cout << "Transposition table cleared" << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "Error clearing transposition table: " << e.what() << std::endl;
+            }
+        }
+        else if (trimmedCommand.substr(0, 5) == "time ") {
+            try {
+                int timeMs = std::stoi(trimmedCommand.substr(5));
+                if (timeMs > 0 && timeMs <= 3600000) { // Max 1 hour
+                    engine.setTimeForMove(timeMs);
+                    std::cout << "Time per move set to " << timeMs << " milliseconds" << std::endl;
+                } else {
+                    std::cout << "Invalid time! Must be between 1 and 3600000 ms." << std::endl;
+                }
+            } catch (const std::exception& e) {
+                std::cout << "Invalid time format! Usage: time <milliseconds>" << std::endl;
+            }
+        }
+        else if (trimmedCommand == "time off") {
+            try {
+                engine.setTimeManagement(false);
+                std::cout << "Time management disabled" << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "Error disabling time management: " << e.what() << std::endl;
+            }
+        }
+        else if (trimmedCommand.substr(0, 6) == "perft ") {
+            try {
+                int depth = std::stoi(trimmedCommand.substr(6));
+                if (depth > 0 && depth <= 6) {
+                    Board board = game.getBoard();
+                    PerftTester::perftDivide(board, depth);
+                } else {
+                    std::cout << "Perft depth must be between 1 and 6!" << std::endl;
+                }
+            } catch (const std::exception& e) {
+                std::cout << "Invalid perft depth! Usage: perft <depth>" << std::endl;
+            }
+        }
+        else {
+            // STEP 5: Try to interpret the command as a move
+            if (isPlayerTurn()) {
+                try {
+                    if (game.makeMove(trimmedCommand)) {
+                        printGame();
+                    } else {
+                        std::cout << "Invalid move! Type 'help' for assistance." << std::endl;
+                        std::cout << "Make sure to use format like: e2e4, g1f3, e7e8q (for promotion)" << std::endl;
+                    }
+                } catch (const std::exception& e) {
+                    std::cerr << "Error making move: " << e.what() << std::endl;
+                    std::cout << "Type 'help' for move format assistance." << std::endl;
+                }
+            } else {
+                std::cout << "Unknown command: '" << trimmedCommand << "'. Type 'help' for available commands." << std::endl;
+            }
+        }
+        
+        return true;
+        
+    } catch (const std::exception& e) {
+        std::cerr << "Error processing command '" << command << "': " << e.what() << std::endl;
+        std::cout << "Type 'help' for available commands." << std::endl;
+        return true; // Continue running despite error
+    } catch (...) {
+        std::cerr << "Unknown error processing command '" << command << "'" << std::endl;
+        std::cout << "Type 'help' for available commands." << std::endl;
+        return true; // Continue running despite error
     }
-
-    return true;
 }
 
 bool UI::isPlayerTurn() const
