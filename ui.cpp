@@ -220,9 +220,15 @@ bool UI::processCommand(const std::string &command)
         newGame();
     }
     else if (command == "perft")
-    {
-        runPerftTests();
-    }
+{
+    std::cout << "Running enhanced perft test suite..." << std::endl;
+    PerftTester::runTestSuite();
+}
+else if (command == "perft basic")
+{
+    std::cout << "Running basic perft tests..." << std::endl;
+    runPerftTests(); // Keep the old method available
+}
     else if (command == "new black")
     {
         newGame(false);
@@ -318,10 +324,16 @@ bool UI::processCommand(const std::string &command)
         engine.clearTT();
         std::cout << "Transposition table cleared" << std::endl;
     }
-    else if (command == "perft")
-    {
-        runPerftTests();
-    }
+   else if (command == "perft")
+{
+    std::cout << "Running enhanced perft test suite..." << std::endl;
+    PerftTester::runTestSuite();
+}
+else if (command == "perft basic")
+{
+    std::cout << "Running basic perft tests..." << std::endl;
+    runPerftTests(); // Keep the old method available
+}
     else if (command.substr(0, 5) == "time ")
     {
         try

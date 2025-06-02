@@ -4,9 +4,11 @@
 #include "main.h"
 #include "board.h"
 
-class PerftTester {
+class PerftTester
+{
 public:
-    struct PerftResult {
+    struct PerftResult
+    {
         uint64_t nodes;
         uint64_t captures;
         uint64_t enPassant;
@@ -14,25 +16,30 @@ public:
         uint64_t promotions;
         uint64_t checks;
         uint64_t checkmates;
-        
-        PerftResult() : nodes(0), captures(0), enPassant(0), castles(0), 
-                       promotions(0), checks(0), checkmates(0) {}
+
+        PerftResult() : nodes(0), captures(0), enPassant(0), castles(0),
+                        promotions(0), checks(0), checkmates(0) {}
     };
-    
+
     // Run perft test from a given position
-    static PerftResult perft(Board& board, int depth);
-    
+    static PerftResult perft(Board &board, int depth);
+
     // Run perft with detailed breakdown (divide)
-    static void perftDivide(Board& board, int depth);
-    
+    static void perftDivide(Board &board, int depth);
+
     // Run standard test suite
     static bool runTestSuite();
-    
+
     // Test individual position
-    static bool testPosition(const std::string& fen, int depth, uint64_t expectedNodes);
-    
+    static bool testPosition(const std::string &fen, int depth, uint64_t expectedNodes);
+
+    static bool testEnPassant();
+    static bool testCastling();
+    static bool testPromotion();
+    static bool runEnhancedTestSuite();
+
 private:
-    static PerftResult perftRecursive(Board& board, int depth, bool root = false);
+    static PerftResult perftRecursive(Board &board, int depth, bool root = false);
 };
 
 #endif // PERFT_H
