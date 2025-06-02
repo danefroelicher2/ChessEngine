@@ -2667,7 +2667,7 @@ int Engine::evaluatePosition(const Board &board)
     int blackScore = 0;
     bool isEndgamePhase = isEndgame(board);
 
-    // Loop through all squares on the board
+    // MATERIAL AND POSITIONAL EVALUATION (existing code)
     for (int row = 0; row < 8; row++)
     {
         for (int col = 0; col < 8; col++)
@@ -2680,14 +2680,8 @@ int Engine::evaluatePosition(const Board &board)
 
             // Base piece value
             int pieceValue = 0;
-
-            // Positional value based on piece-square tables
             int positionalValue = 0;
-
-            // Calculate the index for the piece-square tables
             int tableIndex = row * 8 + col;
-
-            // Adjust the index for black pieces (mirror the board)
             int blackTableIndex = (7 - row) * 8 + col;
 
             switch (piece->getType())
@@ -2696,27 +2690,22 @@ int Engine::evaluatePosition(const Board &board)
                 pieceValue = PAWN_VALUE;
                 positionalValue = pawnTable[piece->getColor() == Color::WHITE ? tableIndex : blackTableIndex];
                 break;
-
             case PieceType::KNIGHT:
                 pieceValue = KNIGHT_VALUE;
                 positionalValue = knightTable[piece->getColor() == Color::WHITE ? tableIndex : blackTableIndex];
                 break;
-
             case PieceType::BISHOP:
                 pieceValue = BISHOP_VALUE;
                 positionalValue = bishopTable[piece->getColor() == Color::WHITE ? tableIndex : blackTableIndex];
                 break;
-
             case PieceType::ROOK:
                 pieceValue = ROOK_VALUE;
                 positionalValue = rookTable[piece->getColor() == Color::WHITE ? tableIndex : blackTableIndex];
                 break;
-
             case PieceType::QUEEN:
                 pieceValue = QUEEN_VALUE;
                 positionalValue = queenTable[piece->getColor() == Color::WHITE ? tableIndex : blackTableIndex];
                 break;
-
             case PieceType::KING:
                 pieceValue = KING_VALUE;
                 if (isEndgamePhase)
@@ -2728,12 +2717,10 @@ int Engine::evaluatePosition(const Board &board)
                     positionalValue = kingMiddleGameTable[piece->getColor() == Color::WHITE ? tableIndex : blackTableIndex];
                 }
                 break;
-
             default:
                 break;
             }
 
-            // Add the piece value and positional value to the appropriate side's score
             if (piece->getColor() == Color::WHITE)
             {
                 whiteScore += pieceValue + positionalValue;
@@ -2745,31 +2732,51 @@ int Engine::evaluatePosition(const Board &board)
         }
     }
 
+    // NEW: ENHANCED EVALUATION COMPONENTS
+    
+    // 1. Piece Mobility
+    int mobilityScore = evaluatePieceMobility(board);
+    
+    // 2. King Safety
+    int kingSafetyScore = evaluateKingSafety(board);
+    
+    // 3. Pawn Structure
+    int pawnStructureScore = evaluatePawnStructure(board);
+    
+    // 4. Piece Coordination
+    int coordinationScore = evaluatePieceCoordination(board);
+    
+    // 5. Endgame Factors
+    int endgameScore = 0;
+    if (isEndgamePhase) {
+        endgameScore = evaluateEndgameFactors(board);
+    }
+
     // Check for checkmate and stalemate
     if (board.isCheckmate())
     {
         if (board.getSideToMove() == Color::WHITE)
         {
-            // Black wins
             return -100000;
         }
         else
         {
-            // White wins
             return 100000;
         }
     }
     else if (board.isStalemate())
     {
-        // Draw
         return 0;
     }
 
-    // Calculate the final score from white's perspective
-    int score = whiteScore - blackScore;
+    // Calculate total score
+    int materialScore = whiteScore - blackScore;
+    int positionalScore = mobilityScore + kingSafetyScore + pawnStructureScore + coordinationScore + endgameScore;
+    
+    int totalScore = materialScore + positionalScore;
 
-    // Adjust the score based on the side to move
-    return board.getSideToMove() == Color::WHITE ? score : -score;
+    // Return from current side's perspective
+    return board.getSideToMove() == Color::WHITE ? totalScore : -totalScore;
 }
 
 bool Engine::shouldStopSearch() const
@@ -3234,4 +3241,622 @@ void Engine::printTuningResults() const
     std::cout << "Futility: " << pruningStats[2] << std::endl;
     std::cout << "LMR: " << pruningStats[3] << std::endl;
     std::cout << "Conflicts: " << pruningStats[4] << std::endl;
+}
+// ===== ENHANCED EVALUATION IMPLEMENTATIONS =====
+
+int Engine::evaluatePieceMobility(const Board& board) const
+{
+    int whiteMobility = countPieceMobility(board, Color::WHITE);
+    int blackMobility = countPieceMobility(board, Color::BLACK);
+    
+    return (whiteMobility - blackMobility) * MOBILITY_WEIGHT;
+}
+
+int Engine::countPieceMobility(const Board& board, Color color) const
+{
+    int totalMobility = 0;
+    
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+            Position pos(row, col);
+            auto piece = board.getPieceAt(pos);
+            
+            if (!piece || piece->getColor() != color) continue;
+            
+            // Count legal moves for this piece
+            auto moves = piece->getLegalMoves(board);
+            int moveCount = moves.size();
+            
+            // Weight mobility by piece type
+            int mobilityBonus = 0;
+            switch (piece->getType()) {
+                case PieceType::KNIGHT:
+                    mobilityBonus = moveCount * MOBILITY_BONUS_KNIGHT;
+                    break;
+                case PieceType::BISHOP:
+                    mobilityBonus = moveCount * MOBILITY_BONUS_BISHOP;
+                    break;
+                case PieceType::ROOK:
+                    mobilityBonus = moveCount * MOBILITY_BONUS_ROOK;
+                    break;
+                case PieceType::QUEEN:
+                    mobilityBonus = moveCount * MOBILITY_BONUS_QUEEN;
+                    break;
+                default:
+                    // Pawns and Kings get minimal mobility bonus
+                    mobilityBonus = moveCount;
+                    break;
+            }
+            
+            totalMobility += mobilityBonus;
+            
+            // Penalty for trapped pieces (very low mobility)
+            if (moveCount <= 1 && piece->getType() != PieceType::PAWN && piece->getType() != PieceType::KING) {
+                totalMobility -= 25; // Trapped piece penalty
+            }
+        }
+    }
+    
+    return totalMobility;
+}
+
+int Engine::evaluateKingSafety(const Board& board) const
+{
+    int whiteKingSafety = evaluateKingSafetyForColor(board, Color::WHITE);
+    int blackKingSafety = evaluateKingSafetyForColor(board, Color::BLACK);
+    
+    return (whiteKingSafety - blackKingSafety) * KING_SAFETY_WEIGHT;
+}
+
+int Engine::evaluateKingSafetyForColor(const Board& board, Color color) const
+{
+    // Find the king
+    Position kingPos;
+    bool foundKing = false;
+    
+    for (int row = 0; row < 8 && !foundKing; row++) {
+        for (int col = 0; col < 8 && !foundKing; col++) {
+            auto piece = board.getPieceAt(Position(row, col));
+            if (piece && piece->getType() == PieceType::KING && piece->getColor() == color) {
+                kingPos = Position(row, col);
+                foundKing = true;
+            }
+        }
+    }
+    
+    if (!foundKing) return 0;
+    
+    int safetyScore = 0;
+    Color opponentColor = (color == Color::WHITE) ? Color::BLACK : Color::WHITE;
+    
+    // 1. Pawn Shelter
+    safetyScore += countPawnShelter(board, kingPos, color);
+    
+    // 2. King Zone Safety
+    safetyScore += evaluateKingZone(board, kingPos, color);
+    
+    // 3. Attacking Pieces Near King
+    int attackers = countKingAttackers(board, kingPos, opponentColor);
+    safetyScore -= attackers * KING_ATTACKER_PENALTY;
+    
+    // 4. King Exposure Penalty (in center or advanced position)
+    if (isEndgame(board)) {
+        // In endgame, king activity is good
+        int centerDistance = abs(kingPos.row - 3.5) + abs(kingPos.col - 3.5);
+        safetyScore += (7 - centerDistance) * 5; // Bonus for active king
+    } else {
+        // In middlegame, king should be safe
+        if (kingPos.row > 1 && kingPos.row < 6) {
+            safetyScore += EXPOSED_KING_PENALTY; // Penalty for exposed king
+        }
+    }
+    
+    return safetyScore;
+}
+
+int Engine::countPawnShelter(const Board& board, Position kingPos, Color kingColor) const
+{
+    int shelterScore = 0;
+    int direction = (kingColor == Color::WHITE) ? 1 : -1;
+    
+    // Check pawn shelter in front of king
+    for (int dCol = -1; dCol <= 1; dCol++) {
+        Position pawnPos(kingPos.row + direction, kingPos.col + dCol);
+        Position pawnPos2(kingPos.row + 2 * direction, kingPos.col + dCol);
+        
+        if (pawnPos.isValid()) {
+            auto piece = board.getPieceAt(pawnPos);
+            if (piece && piece->getType() == PieceType::PAWN && piece->getColor() == kingColor) {
+                shelterScore += PAWN_SHELTER_BONUS;
+            }
+        }
+        
+        // Bonus for pawns two squares away
+        if (pawnPos2.isValid()) {
+            auto piece = board.getPieceAt(pawnPos2);
+            if (piece && piece->getType() == PieceType::PAWN && piece->getColor() == kingColor) {
+                shelterScore += PAWN_SHELTER_BONUS / 2;
+            }
+        }
+    }
+    
+    return shelterScore;
+}
+
+int Engine::countKingAttackers(const Board& board, Position kingPos, Color attackerColor) const
+{
+    int attackers = 0;
+    
+    // Check for attacking pieces in king zone (3x3 around king)
+    for (int dRow = -2; dRow <= 2; dRow++) {
+        for (int dCol = -2; dCol <= 2; dCol++) {
+            Position checkPos(kingPos.row + dRow, kingPos.col + dCol);
+            if (!checkPos.isValid()) continue;
+            
+            if (board.isSquareAttacked(checkPos, attackerColor)) {
+                attackers++;
+            }
+        }
+    }
+    
+    return attackers;
+}
+
+int Engine::evaluateKingZone(const Board& board, Position kingPos, Color kingColor) const
+{
+    int zoneScore = 0;
+    Color opponentColor = (kingColor == Color::WHITE) ? Color::BLACK : Color::WHITE;
+    
+    // Penalty for opponent pieces near king
+    for (int dRow = -2; dRow <= 2; dRow++) {
+        for (int dCol = -2; dCol <= 2; dCol++) {
+            Position nearPos(kingPos.row + dRow, kingPos.col + dCol);
+            if (!nearPos.isValid()) continue;
+            
+            auto piece = board.getPieceAt(nearPos);
+            if (piece && piece->getColor() == opponentColor) {
+                // More penalty for stronger pieces near king
+                switch (piece->getType()) {
+                    case PieceType::QUEEN:
+                        zoneScore -= 8;
+                        break;
+                    case PieceType::ROOK:
+                        zoneScore -= 5;
+                        break;
+                    case PieceType::BISHOP:
+                    case PieceType::KNIGHT:
+                        zoneScore -= 3;
+                        break;
+                    default:
+                        zoneScore -= 1;
+                        break;
+                }
+            }
+        }
+    }
+    
+    return zoneScore;
+}
+
+int Engine::evaluatePawnStructure(const Board& board) const
+{
+    int whiteScore = evaluatePawnsForColor(board, Color::WHITE);
+    int blackScore = evaluatePawnsForColor(board, Color::BLACK);
+    
+    return (whiteScore - blackScore) * PAWN_STRUCTURE_WEIGHT;
+}
+
+int Engine::evaluatePawnsForColor(const Board& board, Color color) const
+{
+    int pawnScore = 0;
+    
+    // Evaluate each pawn
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+            Position pos(row, col);
+            auto piece = board.getPieceAt(pos);
+            
+            if (!piece || piece->getType() != PieceType::PAWN || piece->getColor() != color) {
+                continue;
+            }
+            
+            // Check for pawn weaknesses
+            if (isPawnIsolated(board, pos)) {
+                pawnScore += ISOLATED_PAWN_PENALTY;
+            }
+            
+            if (isPawnDoubled(board, pos)) {
+                pawnScore += DOUBLED_PAWN_PENALTY;
+            }
+            
+            if (isPawnBackward(board, pos)) {
+                pawnScore += BACKWARD_PAWN_PENALTY;
+            }
+            
+            // Check for pawn strengths
+            if (isPawnPassed(board, pos)) {
+                pawnScore += PASSED_PAWN_BONUS;
+                
+                // Bonus increases as pawn advances
+                int advancement = (color == Color::WHITE) ? row : (7 - row);
+                pawnScore += advancement * 3;
+            }
+        }
+    }
+    
+    // Penalty for pawn islands
+    int islands = getPawnIslands(board, color);
+    pawnScore += islands * PAWN_ISLAND_PENALTY;
+    
+    return pawnScore;
+}
+
+bool Engine::isPawnIsolated(const Board& board, Position pawnPos) const
+{
+    auto pawn = board.getPieceAt(pawnPos);
+    if (!pawn || pawn->getType() != PieceType::PAWN) return false;
+    
+    Color pawnColor = pawn->getColor();
+    
+    // Check adjacent files for friendly pawns
+    for (int dCol = -1; dCol <= 1; dCol += 2) { // Check left and right files
+        int checkCol = pawnPos.col + dCol;
+        if (checkCol < 0 || checkCol > 7) continue;
+        
+        // Check entire file for friendly pawns
+        for (int row = 0; row < 8; row++) {
+            auto piece = board.getPieceAt(Position(row, checkCol));
+            if (piece && piece->getType() == PieceType::PAWN && piece->getColor() == pawnColor) {
+                return false; // Found friendly pawn on adjacent file
+            }
+        }
+    }
+    
+    return true; // No friendly pawns on adjacent files
+}
+
+bool Engine::isPawnDoubled(const Board& board, Position pawnPos) const
+{
+    auto pawn = board.getPieceAt(pawnPos);
+    if (!pawn || pawn->getType() != PieceType::PAWN) return false;
+    
+    Color pawnColor = pawn->getColor();
+    
+    // Check same file for other friendly pawns
+    for (int row = 0; row < 8; row++) {
+        if (row == pawnPos.row) continue; // Skip self
+        
+        auto piece = board.getPieceAt(Position(row, pawnPos.col));
+        if (piece && piece->getType() == PieceType::PAWN && piece->getColor() == pawnColor) {
+            return true; // Found another friendly pawn on same file
+        }
+    }
+    
+    return false;
+}
+
+bool Engine::isPawnBackward(const Board& board, Position pawnPos) const
+{
+    auto pawn = board.getPieceAt(pawnPos);
+    if (!pawn || pawn->getType() != PieceType::PAWN) return false;
+    
+    Color pawnColor = pawn->getColor();
+    int direction = (pawnColor == Color::WHITE) ? 1 : -1;
+    
+    // Check if pawn can be defended by adjacent pawns
+    for (int dCol = -1; dCol <= 1; dCol += 2) {
+        int checkCol = pawnPos.col + dCol;
+        if (checkCol < 0 || checkCol > 7) continue;
+        
+        Position defenderPos(pawnPos.row - direction, checkCol);
+        if (defenderPos.isValid()) {
+            auto piece = board.getPieceAt(defenderPos);
+            if (piece && piece->getType() == PieceType::PAWN && piece->getColor() == pawnColor) {
+                return false; // Can be defended
+            }
+        }
+    }
+    
+    // Check if advance is blocked by enemy pawn
+    Position frontPos(pawnPos.row + direction, pawnPos.col);
+    if (frontPos.isValid()) {
+        auto piece = board.getPieceAt(frontPos);
+        if (piece && piece->getColor() != pawnColor) {
+            return true; // Blocked and cannot be defended
+        }
+    }
+    
+    return false;
+}
+
+bool Engine::isPawnPassed(const Board& board, Position pawnPos) const
+{
+    auto pawn = board.getPieceAt(pawnPos);
+    if (!pawn || pawn->getType() != PieceType::PAWN) return false;
+    
+    Color pawnColor = pawn->getColor();
+    Color opponentColor = (pawnColor == Color::WHITE) ? Color::BLACK : Color::WHITE;
+    int direction = (pawnColor == Color::WHITE) ? 1 : -1;
+    
+    // Check if any enemy pawns can stop this pawn
+    for (int dCol = -1; dCol <= 1; dCol++) {
+        int checkCol = pawnPos.col + dCol;
+        if (checkCol < 0 || checkCol > 7) continue;
+        
+        // Check from current row to end of board
+        for (int row = pawnPos.row; row >= 0 && row < 8; row += direction) {
+            if (row == pawnPos.row && dCol == 0) continue; // Skip self
+            
+            auto piece = board.getPieceAt(Position(row, checkCol));
+            if (piece && piece->getType() == PieceType::PAWN && piece->getColor() == opponentColor) {
+                return false; // Enemy pawn can stop/capture
+            }
+        }
+    }
+    
+    return true;
+}
+
+int Engine::getPawnIslands(const Board& board, Color color) const
+{
+    bool hasPawn[8] = {false}; // Track which files have pawns
+    
+    // Mark files with pawns
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+            auto piece = board.getPieceAt(Position(row, col));
+            if (piece && piece->getType() == PieceType::PAWN && piece->getColor() == color) {
+                hasPawn[col] = true;
+            }
+        }
+    }
+    
+    // Count islands (groups of consecutive files with pawns)
+    int islands = 0;
+    bool inIsland = false;
+    
+    for (int col = 0; col < 8; col++) {
+        if (hasPawn[col] && !inIsland) {
+            islands++;
+            inIsland = true;
+        } else if (!hasPawn[col] && inIsland) {
+            inIsland = false;
+        }
+    }
+    
+    return islands;
+}
+
+int Engine::evaluatePieceCoordination(const Board& board) const
+{
+    int whiteScore = evaluatePieceActivity(board, Color::WHITE);
+    int blackScore = evaluatePieceActivity(board, Color::BLACK);
+    
+    return (whiteScore - blackScore) * PIECE_COORDINATION_WEIGHT;
+}
+
+int Engine::evaluatePieceActivity(const Board& board, Color color) const
+{
+    int activityScore = 0;
+    
+    // Bishop pair bonus
+    if (hasBishopPair(board, color)) {
+        activityScore += BISHOP_PAIR_BONUS;
+    }
+    
+    // Evaluate each piece for activity
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+            Position pos(row, col);
+            auto piece = board.getPieceAt(pos);
+            
+            if (!piece || piece->getColor() != color) continue;
+            
+            switch (piece->getType()) {
+                case PieceType::KNIGHT:
+                    if (isKnightOutpost(board, pos)) {
+                        activityScore += KNIGHT_OUTPOST_BONUS;
+                    }
+                    break;
+                    
+                case PieceType::ROOK:
+                    if (isRookOnOpenFile(board, pos)) {
+                        activityScore += ROOK_OPEN_FILE_BONUS;
+                    } else if (isRookOnSemiOpenFile(board, pos)) {
+                        activityScore += ROOK_SEMI_OPEN_FILE_BONUS;
+                    }
+                    break;
+                    
+                case PieceType::BISHOP:
+                    // Bonus for bishops on long diagonals
+                    if ((pos.row == pos.col) || (pos.row + pos.col == 7)) {
+                        activityScore += 8; // Long diagonal bonus
+                    }
+                    break;
+                    
+                default:
+                    break;
+            }
+        }
+    }
+    
+    return activityScore;
+}
+
+bool Engine::hasBishopPair(const Board& board, Color color) const
+{
+    int bishopCount = 0;
+    
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+            auto piece = board.getPieceAt(Position(row, col));
+            if (piece && piece->getType() == PieceType::BISHOP && piece->getColor() == color) {
+                bishopCount++;
+            }
+        }
+    }
+    
+    return bishopCount >= 2;
+}
+
+bool Engine::isKnightOutpost(const Board& board, Position knightPos) const
+{
+    auto knight = board.getPieceAt(knightPos);
+    if (!knight || knight->getType() != PieceType::KNIGHT) return false;
+    
+    Color knightColor = knight->getColor();
+    Color opponentColor = (knightColor == Color::WHITE) ? Color::BLACK : Color::WHITE;
+    
+    // Must be in opponent's half
+    bool inOpponentHalf = (knightColor == Color::WHITE && knightPos.row >= 4) ||
+                          (knightColor == Color::BLACK && knightPos.row <= 3);
+    
+    if (!inOpponentHalf) return false;
+    
+    // Must be defended by own pawn
+    int direction = (knightColor == Color::WHITE) ? -1 : 1;
+    
+    for (int dCol = -1; dCol <= 1; dCol += 2) {
+        Position defenderPos(knightPos.row + direction, knightPos.col + dCol);
+        if (defenderPos.isValid()) {
+            auto piece = board.getPieceAt(defenderPos);
+            if (piece && piece->getType() == PieceType::PAWN && piece->getColor() == knightColor) {
+                // Check that it cannot be attacked by enemy pawns
+                for (int dCol2 = -1; dCol2 <= 1; dCol2 += 2) {
+                    Position attackerPos(knightPos.row - direction, knightPos.col + dCol2);
+                    if (attackerPos.isValid()) {
+                        auto attacker = board.getPieceAt(attackerPos);
+                        if (attacker && attacker->getType() == PieceType::PAWN && attacker->getColor() == opponentColor) {
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+        }
+    }
+    
+    return false;
+}
+
+bool Engine::isRookOnOpenFile(const Board& board, Position rookPos) const
+{
+    auto rook = board.getPieceAt(rookPos);
+    if (!rook || rook->getType() != PieceType::ROOK) return false;
+    
+    // Check if file has no pawns
+    for (int row = 0; row < 8; row++) {
+        auto piece = board.getPieceAt(Position(row, rookPos.col));
+        if (piece && piece->getType() == PieceType::PAWN) {
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+bool Engine::isRookOnSemiOpenFile(const Board& board, Position rookPos) const
+{
+    auto rook = board.getPieceAt(rookPos);
+    if (!rook || rook->getType() != PieceType::ROOK) return false;
+    
+    Color rookColor = rook->getColor();
+    bool hasOwnPawn = false;
+    bool hasEnemyPawn = false;
+    
+    // Check file for pawns
+    for (int row = 0; row < 8; row++) {
+        auto piece = board.getPieceAt(Position(row, rookPos.col));
+        if (piece && piece->getType() == PieceType::PAWN) {
+            if (piece->getColor() == rookColor) {
+                hasOwnPawn = true;
+            } else {
+                hasEnemyPawn = true;
+            }
+        }
+    }
+    
+    // Semi-open = no own pawns but has enemy pawns
+    return !hasOwnPawn && hasEnemyPawn;
+}
+
+int Engine::evaluateEndgameFactors(const Board& board) const
+{
+    int whiteScore = evaluateKingActivity(board, Color::WHITE);
+    int blackScore = evaluateKingActivity(board, Color::BLACK);
+    
+    return (whiteScore - blackScore) * ENDGAME_WEIGHT;
+}
+
+int Engine::evaluateKingActivity(const Board& board, Color color) const
+{
+    // Find the king
+    Position kingPos;
+    bool foundKing = false;
+    
+    for (int row = 0; row < 8 && !foundKing; row++) {
+        for (int col = 0; col < 8 && !foundKing; col++) {
+            auto piece = board.getPieceAt(Position(row, col));
+            if (piece && piece->getType() == PieceType::KING && piece->getColor() == color) {
+                kingPos = Position(row, col);
+                foundKing = true;
+            }
+        }
+    }
+    
+    if (!foundKing) return 0;
+    
+    int activityScore = 0;
+    
+    // King activity bonus (closer to center is better in endgame)
+    int centerDistance = abs(kingPos.row - 3.5) + abs(kingPos.col - 3.5);
+    activityScore += (7 - centerDistance) * 8;
+    
+    // King mobility
+    auto king = board.getPieceAt(kingPos);
+    if (king) {
+        auto moves = king->getLegalMoves(board);
+        activityScore += moves.size() * 3;
+    }
+    
+    // Opposition evaluation (simplified)
+    Color opponentColor = (color == Color::WHITE) ? Color::BLACK : Color::WHITE;
+    Position opponentKingPos;
+    bool foundOpponentKing = false;
+    
+    for (int row = 0; row < 8 && !foundOpponentKing; row++) {
+        for (int col = 0; col < 8 && !foundOpponentKing; col++) {
+            auto piece = board.getPieceAt(Position(row, col));
+            if (piece && piece->getType() == PieceType::KING && piece->getColor() == opponentColor) {
+                opponentKingPos = Position(row, col);
+                foundOpponentKing = true;
+            }
+        }
+    }
+    
+    if (foundOpponentKing) {
+        int kingDistance = abs(kingPos.row - opponentKingPos.row) + abs(kingPos.col - opponentKingPos.col);
+        
+        // Opposition bonus (having the move when kings face each other)
+        if (kingDistance == 2 && 
+            ((kingPos.row == opponentKingPos.row && abs(kingPos.col - opponentKingPos.col) == 2) ||
+             (kingPos.col == opponentKingPos.col && abs(kingPos.row - opponentKingPos.row) == 2))) {
+            if (board.getSideToMove() != color) {
+                activityScore += 15; // Opposition bonus
+            }
+        }
+        
+        // King proximity to enemy pawns (for king and pawn endgames)
+        for (int row = 0; row < 8; row++) {
+            for (int col = 0; col < 8; col++) {
+                auto piece = board.getPieceAt(Position(row, col));
+                if (piece && piece->getType() == PieceType::PAWN && piece->getColor() == opponentColor) {
+                    int pawnDistance = abs(kingPos.row - row) + abs(kingPos.col - col);
+                    activityScore += (8 - pawnDistance) * 2; // Closer to enemy pawns is better
+                }
+            }
+        }
+    }
+    
+    return activityScore;
 }

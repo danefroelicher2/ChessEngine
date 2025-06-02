@@ -135,6 +135,16 @@ public:
 
     // Reset search statistics
     void resetStats() { nodesSearched = 0; }
+    // NEW: Public evaluation methods for testing
+    int evaluatePieceMobility(const Board& board) const;
+    int evaluateKingSafety(const Board& board) const;
+    int evaluatePawnStructure(const Board& board) const;
+    int evaluatePieceCoordination(const Board& board) const;
+    int evaluateEndgameFactors(const Board& board) const;
+    int countPieceMobility(const Board& board, Color color) const;
+    int getPawnIslands(const Board& board, Color color) const;
+    bool hasBishopPair(const Board& board, Color color) const;
+    bool isEndgame(const Board& board) const;
 
 private:
     // NULL MOVE PRUNING PARAMETERS
@@ -168,6 +178,37 @@ private:
     static const int QUEEN_VALUE = 900;
     static const int KING_VALUE = 20000;
 
+    // NEW: EVALUATION WEIGHTS
+    static const int MOBILITY_WEIGHT = 4;
+    static const int KING_SAFETY_WEIGHT = 15;
+    static const int PAWN_STRUCTURE_WEIGHT = 8;
+    static const int PIECE_COORDINATION_WEIGHT = 6;
+    static const int ENDGAME_WEIGHT = 10;
+
+    // NEW: PAWN STRUCTURE VALUES
+    static const int ISOLATED_PAWN_PENALTY = -12;
+    static const int DOUBLED_PAWN_PENALTY = -15;
+    static const int BACKWARD_PAWN_PENALTY = -8;
+    static const int PASSED_PAWN_BONUS = 20;
+    static const int PAWN_ISLAND_PENALTY = -5;
+
+    // NEW: PIECE COORDINATION VALUES
+    static const int BISHOP_PAIR_BONUS = 30;
+    static const int KNIGHT_OUTPOST_BONUS = 25;
+    static const int ROOK_OPEN_FILE_BONUS = 15;
+    static const int ROOK_SEMI_OPEN_FILE_BONUS = 10;
+
+    // NEW: KING SAFETY VALUES
+    static const int PAWN_SHELTER_BONUS = 10;
+    static const int EXPOSED_KING_PENALTY = -20;
+    static const int KING_ATTACKER_PENALTY = -15;
+
+    // NEW: MOBILITY VALUES
+    static const int MOBILITY_BONUS_KNIGHT = 4;
+    static const int MOBILITY_BONUS_BISHOP = 3;
+    static const int MOBILITY_BONUS_ROOK = 2;
+    static const int MOBILITY_BONUS_QUEEN = 1;
+
     // PIECE-SQUARE TABLES
     static const int pawnTable[64];
     static const int knightTable[64];
@@ -185,9 +226,41 @@ private:
                   std::vector<Move> &pv, uint64_t hashKey, int ply, Move lastMove);
     int quiescenceSearch(Board &board, int alpha, int beta, uint64_t hashKey, int ply);
 
-    // EVALUATION METHODS
+  // EVALUATION METHODS
     int evaluatePosition(const Board &board);
     bool isEndgame(const Board &board) const;
+
+    // NEW: Enhanced Evaluation Methods
+    int evaluatePieceMobility(const Board& board) const;
+    int evaluateKingSafety(const Board& board) const;
+    int evaluatePawnStructure(const Board& board) const;
+    int evaluatePieceCoordination(const Board& board) const;
+    int evaluateEndgameFactors(const Board& board) const;
+
+    // NEW: Individual Evaluation Components
+    int countPieceMobility(const Board& board, Color color) const;
+    int evaluateKingSafetyForColor(const Board& board, Color color) const;
+    int evaluatePawnsForColor(const Board& board, Color color) const;
+    int evaluatePieceActivity(const Board& board, Color color) const;
+    int evaluateKingActivity(const Board& board, Color color) const;
+
+    // NEW: Pawn Structure Helpers
+    bool isPawnIsolated(const Board& board, Position pawnPos) const;
+    bool isPawnDoubled(const Board& board, Position pawnPos) const;
+    bool isPawnBackward(const Board& board, Position pawnPos) const;
+    bool isPawnPassed(const Board& board, Position pawnPos) const;
+    int getPawnIslands(const Board& board, Color color) const;
+
+    // NEW: Piece Coordination Helpers
+    bool hasBishopPair(const Board& board, Color color) const;
+    bool isKnightOutpost(const Board& board, Position knightPos) const;
+    bool isRookOnOpenFile(const Board& board, Position rookPos) const;
+    bool isRookOnSemiOpenFile(const Board& board, Position rookPos) const;
+
+    // NEW: King Safety Helpers
+    int countPawnShelter(const Board& board, Position kingPos, Color kingColor) const;
+    int countKingAttackers(const Board& board, Position kingPos, Color attackerColor) const;
+    int evaluateKingZone(const Board& board, Position kingPos, Color kingColor) const;
 
     // MOVE GENERATION METHODS
     void generateCaptureMoves(const Board& board, std::vector<Move>& captures) const;

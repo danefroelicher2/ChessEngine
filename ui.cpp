@@ -563,6 +563,77 @@ bool UI::processCommand(const std::string &command)
                     std::cerr << "Error testing improvements: " << e.what() << std::endl;
                 }
             }
+            
+else if (trimmedCommand == "eval")
+        {
+            try
+            {
+                std::cout << "=== Detailed Position Evaluation ===" << std::endl;
+                Board board = game.getBoard();
+                
+                // Show overall evaluation
+                int totalEval = engine.evaluatePosition(board);
+                std::cout << "Total Evaluation: " << totalEval << " (from " 
+                          << (board.getSideToMove() == Color::WHITE ? "White's" : "Black's") 
+                          << " perspective)" << std::endl;
+                
+                std::cout << "\n--- Component Breakdown ---" << std::endl;
+                
+                // Test each component
+                std::cout << "Piece Mobility: " << engine.evaluatePieceMobility(board) << std::endl;
+                std::cout << "King Safety: " << engine.evaluateKingSafety(board) << std::endl;
+                std::cout << "Pawn Structure: " << engine.evaluatePawnStructure(board) << std::endl;
+                std::cout << "Piece Coordination: " << engine.evaluatePieceCoordination(board) << std::endl;
+                
+                if (engine.isEndgame(board)) {
+                    std::cout << "Endgame Factors: " << engine.evaluateEndgameFactors(board) << std::endl;
+                }
+                
+                std::cout << "\n--- Detailed Analysis ---" << std::endl;
+                std::cout << "White Mobility: " << engine.countPieceMobility(board, Color::WHITE) << std::endl;
+                std::cout << "Black Mobility: " << engine.countPieceMobility(board, Color::BLACK) << std::endl;
+                std::cout << "White Pawn Islands: " << engine.getPawnIslands(board, Color::WHITE) << std::endl;
+                std::cout << "Black Pawn Islands: " << engine.getPawnIslands(board, Color::BLACK) << std::endl;
+                std::cout << "White Bishop Pair: " << (engine.hasBishopPair(board, Color::WHITE) ? "Yes" : "No") << std::endl;
+                std::cout << "Black Bishop Pair: " << (engine.hasBishopPair(board, Color::BLACK) ? "Yes" : "No") << std::endl;
+                std::cout << "Is Endgame: " << (engine.isEndgame(board) ? "Yes" : "No") << std::endl;
+            }
+            catch (const std::exception &e)
+            {
+                std::cerr << "Error evaluating position: " << e.what() << std::endl;
+            }
+        }
+        else if (trimmedCommand == "evaltest")
+        {
+            try
+            {
+                std::cout << "=== Testing Evaluation on Known Positions ===" << std::endl;
+                
+                // Test starting position
+                game.newGameFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+                std::cout << "Starting Position: " << engine.evaluatePosition(game.getBoard()) << std::endl;
+                
+               // Test position with pawn structure issues
+               game.newGameFromFEN("rnbqkbnr/ppp1pppp/8/3p4/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 2");
+               std::cout << "Symmetrical Pawn Structure: " << engine.evaluatePosition(game.getBoard()) << std::endl;
+               
+               // Test endgame position
+               game.newGameFromFEN("8/8/8/8/8/4k3/4P3/4K3 w - - 0 1");
+               std::cout << "King & Pawn Endgame: " << engine.evaluatePosition(game.getBoard()) << std::endl;
+               
+               // Test bishop pair position
+               game.newGameFromFEN("rnbqk1nr/pppp1ppp/8/2b1p3/2B1P3/8/PPPP1PPP/RNBQK1NR w KQkq - 4 4");
+               std::cout << "Italian Game (Bishop Development): " << engine.evaluatePosition(game.getBoard()) << std::endl;
+               
+               // Restore original position
+               game.newGame();
+           }
+           catch (const std::exception &e)
+           {
+               std::cerr << "Error in evaluation test: " << e.what() << std::endl;
+           }
+       }
+
             catch (const std::exception &e)
             {
                 std::cout << "Invalid perft depth! Usage: perft <depth>" << std::endl;
@@ -650,3 +721,5 @@ void UI::displayHelp() const
     std::cout << "  perft          - Run perft test suite" << std::endl;
     std::cout << "  benchmark      - Run performance benchmark suite" << std::endl;
     std::cout << "  regression     - Run quick performance regression test" << std::endl;
+    std::cout << "  eval           - Show detailed position evaluation" << std::endl;
+    std::cout << "  evaltest       - Test evaluation on known positions" << std::endl;
