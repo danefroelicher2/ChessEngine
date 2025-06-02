@@ -7,6 +7,7 @@
 #include "zobrist.h"
 #include <mutex>
 #include <atomic>
+#include <unordered_map>
 
 // Maximum search depth - adjust if needed
 #define MAX_PLY 64
@@ -15,40 +16,57 @@
 class Engine
 {
 private:
+    // CORE ENGINE DATA
     int maxDepth;
     Game &game;
     TranspositionTable transpositionTable;
+    Zobrist zobristHasher;
 
-    // Principal Variation (PV) storage
+    // PRINCIPAL VARIATION (PV) STORAGE
     std::vector<Move> principalVariation;
     std::vector<std::vector<Move>> pvTable; // Stores PV for each depth
 
-    // Killer move tables - stores non-capturing moves that caused beta cutoffs
-    // We'll store 2 killer moves per ply
-    Move killerMoves[MAX_PLY][2];
+    // ENHANCED: KILLER MOVE TABLES - 4 slots instead of 2
+    Move killerMoves[MAX_PLY][4];
 
-    // Counter move heuristic table [piece_type][color][from_square][to_square]
-    // Stores moves that were effective against specific opponent moves
-    Move counterMoves[6][2][64][64];
+    // COUNTER MOVE HEURISTIC TABLE
+    Move counterMoves[6][2][64][64]; // [piece_type][color][from_square][to_square]
 
-    // History heuristic table [color][from_square][to_square]
-    // Records how often moves lead to beta cutoffs
-    int historyTable[2][64][64];
+    // HISTORY HEURISTIC TABLE
+    int historyTable[2][64][64]; // [color][from_square][to_square]
 
-    // Search statistics
+    // ENHANCED MOVE ORDERING STRUCTURES
+    int butterflyHistory[64][64];                    // [from_square][to_square]
+    Move countermoveHistory[6][64];                  // [piece_type][to_square]
+    mutable std::unordered_map<uint64_t, int> seeCache;      // SEE cache for performance
+
+    // NULL MOVE PRUNING TRACKING
+    bool nullMoveAllowed[MAX_PLY];  // Track null move usage per ply
+
+    // SEARCH STATISTICS
     long nodesSearched;
     std::chrono::time_point<std::chrono::high_resolution_clock> searchStartTime;
 
-    // Time management variables
+    // NEW: Extension tracking and limiting
+    static const int MAX_EXTENSIONS_PER_PLY = 2;     // Maximum extensions per ply
+    static const int MAX_TOTAL_EXTENSIONS = 16;      // Maximum total extensions per search path
+    static const int SINGULAR_MARGIN_BASE = 64;      // Base margin for singular move detection
+    static const int CHECK_EXTENSION_LIMIT = 8;      // Limit check extensions per search
+    
+    // Extension counters (per search path)
+    int extensionsUsed[MAX_PLY];                     // Extensions used at each ply
+    int totalExtensionsInPath;                       // Total extensions in current search path
+
+    // TIME MANAGEMENT VARIABLES
     int timeAllocated; // time in milliseconds allocated for this move
     int timeBuffer;    // safety buffer to avoid timeout
     bool timeManaged;  // whether to use time management
-
-    // Search instability detection
-    bool positionIsUnstable;
     mutable std::mutex timeMutex;
     std::atomic<bool> searchShouldStop{false};
     std::atomic<bool> timeManagementActive{false};
+
+    // SEARCH INSTABILITY DETECTION
+    bool positionIsUnstable;
     int unstableExtensionPercent; // Additional percentage of time for unstable positions
 
 public:
@@ -64,10 +82,17 @@ public:
             pvTable[i].clear();
         }
 
-        // Initialize tables
+     // Initialize tables
         clearKillerMoves();
         clearHistoryTable();
         clearCounterMoves();
+        clearEnhancedTables();
+        
+        // NEW: Initialize extension tracking
+        totalExtensionsInPath = 0;
+        for (int i = 0; i < MAX_PLY; i++) {
+            extensionsUsed[i] = 0;
+        }
     }
 
     void setTimeAllocation(int timeInMs)
@@ -86,9 +111,6 @@ public:
     // Enable/disable time management
     void setTimeManagement(bool enabled) { timeManaged = enabled; }
 
-    // Check if we should stop searching due to time
-    bool shouldStopSearch() const;
-
     // Set the search depth
     void setDepth(int depth) { maxDepth = depth; }
 
@@ -101,15 +123,6 @@ public:
     // Clear the transposition table
     void clearTT() { transpositionTable.clear(); }
 
-    // Clear the killer moves
-    void clearKillerMoves();
-
-    // Clear the counter moves
-    void clearCounterMoves();
-
-    // Clear the history table
-    void clearHistoryTable();
-
     // Get the principal variation as a string
     std::string getPVString() const;
 
@@ -120,100 +133,24 @@ public:
     void resetStats() { nodesSearched = 0; }
 
 private:
+    // NULL MOVE PRUNING PARAMETERS
+    static const int NULL_MOVE_MIN_DEPTH = 3;
+    static const int NULL_MOVE_BASE_REDUCTION = 3;
+    static const int NULL_MOVE_VERIFICATION_DEPTH = 2;
 
-// Add to engine.h private section:
-void generateCaptureMoves(const Board& board, std::vector<Move>& captures) const;
-void generatePawnCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
-void generateKnightCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
-void generateBishopCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
-void generateRookCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
-void generateQueenCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
-void generateKingCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
-void generateCheckEvasions(const Board& board, std::vector<Move>& evasions) const;
-void generatePromotions(const Board& board, std::vector<Move>& promotions) const;
-
-// Add to engine.h private members:
-Zobrist zobristHasher;
-    // Helper function to get depth adjustment for a move
-    int getDepthAdjustment(const Move &move, const Board &board, bool isPVMove, int moveIndex) const;
-
-    // Store PV at a specific depth
-    void storePV(int depth, const std::vector<Move> &pv);
-
-    // Check if a move is in the PV at a specific depth and ply
-    bool isPVMove(const Move &move, int depth, int ply) const;
-
-    // Iterative deepening search
-    Move iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashKey);
-
-    // Alpha-beta minimax search algorithm with transposition table
-    int alphaBeta(Board &board, int depth, int alpha, int beta, bool maximizingPlayer,
-                  std::vector<Move> &pv, uint64_t hashKey, int ply, Move lastMove);
-
-    // Principal Variation Search (PVS) - optimization of alpha-beta
-    int pvSearch(Board &board, int depth, int alpha, int beta, bool maximizingPlayer,
-                 std::vector<Move> &pv, uint64_t hashKey, int ply, Move lastMove);
-
-    // Quiescence search for handling captures at leaf nodes
-    int quiescenceSearch(Board &board, int alpha, int beta, uint64_t hashKey, int ply);
-
-    // Static Exchange Evaluation (SEE)
-    int seeCapture(const Board &board, const Move &move) const;
-    int see(const Board &board, const Position &square, Color side, int capture_value) const;
-
-    // Get the approximate value of a piece for SEE
-    int getPieceValue(PieceType type) const;
-
-    // Evaluate a board position
-    int evaluatePosition(const Board &board);
-
-    // MVV-LVA (Most Valuable Victim - Least Valuable Aggressor) scoring
-    int getMVVLVAScore(PieceType attacker, PieceType victim) const;
-
-    int calculateLMRReduction(int depth, int moveIndex, bool foundPV, bool isCapture,
-                              bool isCheck, bool isKillerMove) const;
-
-    // Store a killer move
-    void storeKillerMove(const Move &move, int ply);
-
-    // Check if a move is a killer move at the current ply
-    bool isKillerMove(const Move &move, int ply) const;
-
-    // Store a counter move
-    void storeCounterMove(const Move &lastMove, const Move &counterMove);
-
-    // Get counter move for an opponent's move
-    Move getCounterMove(const Move &lastMove) const;
-
-    // Update history heuristic table for a move that caused beta cutoff
-    void updateHistoryScore(const Move &move, int depth, Color color);
-
-    // Get the history score for a move
-    int getHistoryScore(const Move &move, Color color) const;
-
-    // Get score for move ordering
-    int getMoveScore(const Move &move, const Board &board, const Move &ttMove,
-                     const std::vector<Move> &pv, int ply, Color sideToMove,
-                     const Move &lastMove) const;
-
-    // Check if a move is part of the principal variation (deprecated version for compatibility)
-    bool isPVMove(const Move &move, const std::vector<Move> &pv, int ply) const;
-
-    // Piece value tables for positional evaluation
-    static const int pawnTable[64];
-    static const int knightTable[64];
-    static const int bishopTable[64];
-    static const int rookTable[64];
-    static const int queenTable[64];
-    static const int kingMiddleGameTable[64];
-    static const int kingEndGameTable[64];
+// LMR PARAMETERS - Enhanced
     static const int LMR_MIN_DEPTH = 3;            // Minimum depth to apply LMR
-    static const int LMR_MIN_MOVE_INDEX = 3;       // Start reducing after this many moves
-    static const double LMR_BASE_REDUCTION = 0.75; // Base reduction factor
-    static const double LMR_DEPTH_FACTOR = 0.5;    // How much depth affects reduction
-    static const double LMR_MOVE_FACTOR = 0.3;     // How much move index affects reduction
+    static const int LMR_MIN_MOVE_INDEX = 4;       // Start reducing after this many moves
+    static const int PV_NODE_THRESHOLD = 2;        // Different rules for PV nodes
+    static const int MAX_LMR_REDUCTION = 4;        // Maximum reduction allowed
+    static const int MIN_LMR_REDUCTION = 1;        // Minimum reduction
+    static const double LMR_BASE_REDUCTION = 0.85; // Base reduction factor
+    static const double LMR_DEPTH_FACTOR = 0.6;    // How much depth affects reduction
+    static const double LMR_MOVE_FACTOR = 0.4;     // How much move index affects reduction
+    static const double LMR_POSITION_FACTOR = 0.3; // Position-dependent factor
+    
 
-    // Piece values
+    // PIECE VALUES
     static const int PAWN_VALUE = 100;
     static const int KNIGHT_VALUE = 320;
     static const int BISHOP_VALUE = 330;
@@ -221,8 +158,122 @@ Zobrist zobristHasher;
     static const int QUEEN_VALUE = 900;
     static const int KING_VALUE = 20000;
 
-    // Check if the game is in the endgame phase
+    // PIECE-SQUARE TABLES
+    static const int pawnTable[64];
+    static const int knightTable[64];
+    static const int bishopTable[64];
+    static const int rookTable[64];
+    static const int queenTable[64];
+    static const int kingMiddleGameTable[64];
+    static const int kingEndGameTable[64];
+
+    // CORE SEARCH METHODS
+    Move iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashKey);
+    int pvSearch(Board &board, int depth, int alpha, int beta, bool maximizingPlayer,
+                 std::vector<Move> &pv, uint64_t hashKey, int ply, Move lastMove);
+    int alphaBeta(Board &board, int depth, int alpha, int beta, bool maximizingPlayer,
+                  std::vector<Move> &pv, uint64_t hashKey, int ply, Move lastMove);
+    int quiescenceSearch(Board &board, int alpha, int beta, uint64_t hashKey, int ply);
+
+    // EVALUATION METHODS
+    int evaluatePosition(const Board &board);
     bool isEndgame(const Board &board) const;
+
+    // MOVE GENERATION METHODS
+    void generateCaptureMoves(const Board& board, std::vector<Move>& captures) const;
+    void generatePawnCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
+    void generateKnightCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
+    void generateBishopCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
+    void generateRookCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
+    void generateQueenCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
+    void generateKingCaptures(const Board& board, Position from, std::vector<Move>& captures) const;
+    void generateCheckEvasions(const Board& board, std::vector<Move>& evasions) const;
+    void generatePromotions(const Board& board, std::vector<Move>& promotions) const;
+
+    // STATIC EXCHANGE EVALUATION (SEE)
+    int seeCapture(const Board &board, const Move &move) const;
+    int see(const Board &board, const Position &square, Color side, int capture_value) const;
+    int getPieceValue(PieceType type) const;
+
+    // MOVE ORDERING AND SCORING
+    int getMoveScore(const Move &move, const Board &board, const Move &ttMove,
+                     const std::vector<Move> &pv, int ply, Color sideToMove,
+                     const Move &lastMove) const;
+    int getEnhancedMoveScore(const Move& move, const Board& board, const Move& ttMove,
+                           int ply, Color sideToMove, const Move& lastMove) const;
+    int getMVVLVAScore(PieceType attacker, PieceType victim) const;
+    int getDepthAdjustment(const Move &move, const Board &board, bool isPVMove, int moveIndex) const;
+
+    // ENHANCED: KILLER MOVE MANAGEMENT
+    void storeKillerMove(const Move &move, int ply);
+    void storeEnhancedKillerMove(const Move &move, int ply);
+    bool isKillerMove(const Move &move, int ply) const;
+
+    // COUNTER MOVE MANAGEMENT
+    void storeCounterMove(const Move &lastMove, const Move &counterMove);
+    Move getCounterMove(const Move &lastMove) const;
+    void storeCountermoveHistory(const Move &lastMove, const Move &counterMove);
+    Move getCountermoveHistory(const Move &lastMove) const;
+
+    // HISTORY HEURISTIC MANAGEMENT
+    void updateHistoryScore(const Move &move, int depth, Color color);
+    int getHistoryScore(const Move &move, Color color) const;
+    
+    // Extension methods
+    int calculateExtensions(const Move& move, const Board& board, int depth, int ply, 
+                           bool isPVNode, bool inCheck, int moveNumber) const;
+    int getCheckExtension(const Board& board, int ply) const;
+   int getSingularExtension(const Board& board, const Move& move, int depth,
+                            int alpha, int beta, int ply) const;
+
+    // NEW: Futility pruning methods
+    bool canUseFutilityPruning(int depth, int alpha, int beta, int eval, bool inCheck) const;
+    int getFutilityMargin(int depth, const Board& board) const;
+    bool canUseReverseFutilityPruning(int depth, int eval, int beta) const;
+   bool canUseDeltaPruning(int eval, int alpha, const Move& move, const Board& board) const;
+
+    // NEW: Razoring methods
+    bool canUseRazoring(int depth, int alpha, int eval, bool inCheck) const;
+    int getRazoringMargin(int depth, const Board& board) const;
+    bool hasNearPromotionPawns(const Board& board, Color color) const;
+    bool hasMaterialImbalance(const Board& board) const;
+
+
+
+    // BUTTERFLY HISTORY MANAGEMENT
+    void updateButterflyHistory(const Move &move, int depth, Color color);
+    int getButterflyScore(const Move &move) const;
+
+    // PRINCIPAL VARIATION MANAGEMENT
+    void storePV(int depth, const std::vector<Move> &pv);
+    bool isPVMove(const Move &move, int depth, int ply) const;
+    bool isPVMove(const Move &move, const std::vector<Move> &pv, int ply) const;
+
+    // LATE MOVE REDUCTION (LMR) - Enhanced
+    int calculateLMRReduction(int depth, int moveIndex, bool foundPV, bool isCapture,
+                              bool isCheck, bool isKillerMove) const;
+    int calculateAdvancedLMRReduction(int depth, int moveIndex, bool foundPV, bool isCapture,
+                                    bool isCheck, bool isKillerMove, const Board& board, 
+                                    const Move& move, int ply) const;
+    bool shouldDoGradualReSearch(int lmrScore, int alpha, int beta, int depth) const;
+    int getTacticalPositionBonus(const Board& board) const;
+    int getKingSafetyBonus(const Board& board, const Move& move) const;
+
+    // NULL MOVE PRUNING METHODS
+    bool canUseNullMove(const Board& board, int depth, int beta, int ply) const;
+    bool isZugzwangPosition(const Board& board) const;
+    bool hasOnlyPawnsAndKing(const Board& board, Color color) const;
+    int calculateNullMoveReduction(int depth, int staticEval, int beta) const;
+
+    // UTILITY METHODS
+    bool shouldStopSearch() const;
+    void clearKillerMoves();
+    void clearCounterMoves();
+    void clearHistoryTable();
+    void clearEnhancedTables();
+    void clearSEECache();
+
+    
 };
 
 #endif // ENGINE_H
