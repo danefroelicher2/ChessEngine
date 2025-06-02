@@ -23,6 +23,7 @@ void UI::runTacticalTests()
     TacticalTester::runTestSuite(engine);
 }
 
+
 void UI::runPerftTests()
 {
     PerftTester::runTestSuite();
@@ -227,9 +228,16 @@ bool UI::processCommand(const std::string &command)
         newGame(false);
     }
     else if (command.substr(0, 4) == "fen ")
-    {
-        newGameFromFEN(command.substr(4));
+{
+    std::string fenString = command.substr(4);
+    if (fenString.empty()) {
+        std::cout << "Error: No FEN string provided. Usage: fen <fen-string>" << std::endl;
+        std::cout << "Example: fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" << std::endl;
+    } else {
+        std::cout << "Loading FEN: " << fenString << std::endl;
+        newGameFromFEN(fenString);
     }
+}
     else if (command == "print")
     {
         printGame();

@@ -99,6 +99,8 @@ private:
     // Add this line to board.h private section:
 bool isValidMovePattern(std::shared_ptr<Piece> piece, const Move& move) const;
 
+bool validateFENBoardString(const std::string& boardStr) const;
+
     // Add these to board.h in the private section:
 bool canPieceAttackSquareAfterMove(std::shared_ptr<Piece> piece, Position piecePos, 
                                   Position target, const Move& simulatedMove) const;

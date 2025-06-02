@@ -70,100 +70,168 @@ void Board::setupStartingPosition()
     fullMoveNumber = 1;
 }
 
-void Board::setupFromFEN(const std::string &fen)
-{
-    clear();
+// REPLACE THE ENTIRE setupFromFEN METHOD (from the opening brace to closing brace) with this:
 
+void Board::setupFromFEN(const std::string& fen) {
+    // STEP 1: Input validation
+    if (fen.empty() || fen.length() < 10) {
+        std::cerr << "Error: FEN string too short or empty (length: " << fen.length() << ")" << std::endl;
+        setupStartingPosition();
+        return;
+    }
+    
+    // STEP 2: Safe parsing with validation
     std::istringstream ss(fen);
-    std::string board, activeColor, castling, enPassant, halfmove, fullmove;
-
-    // Extract the 6 parts of the FEN string
-    ss >> board >> activeColor >> castling >> enPassant >> halfmove >> fullmove;
-
-    // Parse board position
-    int row = 7;
+    std::string boardStr, activeColor, castling, enPassant, halfmove, fullmove;
+    
+    // Try to extract all 6 components
+    if (!(ss >> boardStr >> activeColor >> castling >> enPassant >> halfmove >> fullmove)) {
+        std::cerr << "Error: Invalid FEN format - missing components. Expected 6 parts, got: " << fen << std::endl;
+        setupStartingPosition();
+        return;
+    }
+    
+    // STEP 3: Validate each component
+    if (activeColor != "w" && activeColor != "b") {
+        std::cerr << "Error: Invalid active color '" << activeColor << "' - must be 'w' or 'b'" << std::endl;
+        setupStartingPosition();
+        return;
+    }
+    
+    // STEP 4: Validate castling rights format
+    for (char c : castling) {
+        if (c != '-' && c != 'K' && c != 'Q' && c != 'k' && c != 'q') {
+            std::cerr << "Error: Invalid castling rights character: '" << c << "'" << std::endl;
+            setupStartingPosition();
+            return;
+        }
+    }
+    
+    // STEP 5: Validate en passant target
+    if (enPassant != "-") {
+        if (enPassant.length() != 2 || 
+            enPassant[0] < 'a' || enPassant[0] > 'h' ||
+            enPassant[1] < '1' || enPassant[1] > '8') {
+            std::cerr << "Error: Invalid en passant target: '" << enPassant << "'" << std::endl;
+            setupStartingPosition();
+            return;
+        }
+    }
+    
+    // STEP 6: Safe numeric conversion with bounds checking
+    int halfMove = 0, fullMove = 1;
+    try {
+        halfMove = std::stoi(halfmove);
+        fullMove = std::stoi(fullmove);
+        
+        if (halfMove < 0 || halfMove > 100) {
+            std::cerr << "Warning: Unusual halfmove clock " << halfMove << ", clamping to valid range" << std::endl;
+            halfMove = std::max(0, std::min(100, halfMove));
+        }
+        
+        if (fullMove < 1 || fullMove > 9999) {
+            std::cerr << "Warning: Unusual fullmove number " << fullMove << ", clamping to valid range" << std::endl;
+            fullMove = std::max(1, std::min(9999, fullMove));
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Error: Cannot parse move counters '" << halfmove << "', '" << fullmove << "': " << e.what() << std::endl;
+        std::cerr << "Using default values: halfmove=0, fullmove=1" << std::endl;
+        halfMove = 0;
+        fullMove = 1;
+    }
+    
+    // STEP 7: Validate board string format BEFORE attempting to parse
+    if (!validateFENBoardString(boardStr)) {
+        std::cerr << "Error: Invalid board position in FEN: '" << boardStr << "'" << std::endl;
+        setupStartingPosition();
+        return;
+    }
+    
+    // STEP 8: If we get here, FEN is valid - clear board and start parsing
+    clear();
+    
+    // STEP 9: Parse board position (now we know it's valid)
+    int row = 7;  // Start from rank 8 (top of board)
     int col = 0;
-
-    for (char c : board)
-    {
-        if (c == '/')
-        {
+    
+    for (char c : boardStr) {
+        if (c == '/') {
             row--;
             col = 0;
-        }
-        else if (isdigit(c))
-        {
-            col += c - '0';
-        }
-        else
-        {
+        } else if (isdigit(c)) {
+            col += c - '0';  // Skip empty squares
+        } else {
+            // Create piece
             Position pos(row, col);
             std::shared_ptr<Piece> piece = nullptr;
             Color color = isupper(c) ? Color::WHITE : Color::BLACK;
             char pieceChar = tolower(c);
-
-            switch (pieceChar)
-            {
-            case 'p':
-                piece = std::make_shared<Pawn>(color, pos);
-                break;
-            case 'n':
-                piece = std::make_shared<Knight>(color, pos);
-                break;
-            case 'b':
-                piece = std::make_shared<Bishop>(color, pos);
-                break;
-            case 'r':
-                piece = std::make_shared<Rook>(color, pos);
-                break;
-            case 'q':
-                piece = std::make_shared<Queen>(color, pos);
-                break;
-            case 'k':
-            {
-                auto king = std::make_shared<King>(color, pos);
-                piece = king;
-                if (color == Color::WHITE)
-                {
-                    whiteKing = king;
+            
+            switch (pieceChar) {
+                case 'p':
+                    piece = std::make_shared<Pawn>(color, pos);
+                    break;
+                case 'n':
+                    piece = std::make_shared<Knight>(color, pos);
+                    break;
+                case 'b':
+                    piece = std::make_shared<Bishop>(color, pos);
+                    break;
+                case 'r':
+                    piece = std::make_shared<Rook>(color, pos);
+                    break;
+                case 'q':
+                    piece = std::make_shared<Queen>(color, pos);
+                    break;
+                case 'k': {
+                    auto king = std::make_shared<King>(color, pos);
+                    piece = king;
+                    if (color == Color::WHITE) {
+                        whiteKing = king;
+                    } else {
+                        blackKing = king;
+                    }
+                    break;
                 }
-                else
-                {
-                    blackKing = king;
-                }
-                break;
+                default:
+                    std::cerr << "Error: Unexpected piece character during parsing: " << c << std::endl;
+                    setupStartingPosition();
+                    return;
             }
-            }
-
+            
             setPieceAt(pos, piece);
             col++;
         }
     }
-
-    // Parse active color
+    
+    // STEP 10: Set game state (we know all values are valid)
     sideToMove = (activeColor == "w") ? Color::WHITE : Color::BLACK;
-
+    
     // Parse castling rights
     whiteCanCastleKingside = castling.find('K') != std::string::npos;
     whiteCanCastleQueenside = castling.find('Q') != std::string::npos;
     blackCanCastleKingside = castling.find('k') != std::string::npos;
     blackCanCastleQueenside = castling.find('q') != std::string::npos;
-
+    
     // Parse en passant target square
-    if (enPassant != "-")
-    {
+    if (enPassant != "-") {
         enPassantTarget = Position::fromString(enPassant);
-    }
-    else
-    {
+    } else {
         enPassantTarget = Position();
     }
-
-    // Parse halfmove clock
-    halfMoveClock = std::stoi(halfmove);
-
-    // Parse fullmove number
-    fullMoveNumber = std::stoi(fullmove);
+    
+    // Set move counters
+    halfMoveClock = halfMove;
+    fullMoveNumber = fullMove;
+    
+    // STEP 11: Final validation - ensure kings are properly set
+    if (!whiteKing || !blackKing) {
+        std::cerr << "Error: Kings not properly initialized after FEN parsing" << std::endl;
+        setupStartingPosition();
+        return;
+    }
+    
+    std::cout << "Successfully loaded FEN: " << fen << std::endl;
 }
 
 std::string Board::toFEN() const
@@ -1104,4 +1172,97 @@ bool Board::isPathClearForMove(Position from, Position to) const
     }
     
     return true;
+
+bool Board::validateFENBoardString(const std::string& boardStr) const {
+    if (boardStr.empty()) {
+        return false;
+    }
+    
+    int slashCount = 0;
+    int squareCount = 0;
+    bool hasWhiteKing = false;
+    bool hasBlackKing = false;
+    int whiteKingCount = 0;
+    int blackKingCount = 0;
+    
+    for (char c : boardStr) {
+        if (c == '/') {
+            // Each rank must have exactly 8 squares
+            if (squareCount != 8) {
+                std::cerr << "Error: Rank has " << squareCount << " squares, expected 8" << std::endl;
+                return false;
+            }
+            slashCount++;
+            squareCount = 0;
+            
+            // Can't have more than 7 slashes (8 ranks total)
+            if (slashCount > 7) {
+                std::cerr << "Error: Too many ranks in FEN board string" << std::endl;
+                return false;
+            }
+        } 
+        else if (isdigit(c)) {
+            int emptySquares = c - '0';
+            // Empty square count must be 1-8
+            if (emptySquares < 1 || emptySquares > 8) {
+                std::cerr << "Error: Invalid empty square count: " << emptySquares << std::endl;
+                return false;
+            }
+            squareCount += emptySquares;
+            
+            // Can't exceed 8 squares per rank
+            if (squareCount > 8) {
+                std::cerr << "Error: Too many squares in rank" << std::endl;
+                return false;
+            }
+        } 
+        else if (strchr("pnbrqkPNBRQK", c)) {
+            squareCount++;
+            
+            // Track kings for validation
+            if (c == 'K') {
+                hasWhiteKing = true;
+                whiteKingCount++;
+            } else if (c == 'k') {
+                hasBlackKing = true;
+                blackKingCount++;
+            }
+            
+            // Can't exceed 8 squares per rank
+            if (squareCount > 8) {
+                std::cerr << "Error: Too many squares in rank" << std::endl;
+                return false;
+            }
+        } 
+        else {
+            std::cerr << "Error: Invalid character in board string: '" << c << "'" << std::endl;
+            return false;
+        }
+    }
+    
+    // Must have exactly 7 slashes (separating 8 ranks)
+    if (slashCount != 7) {
+        std::cerr << "Error: Expected 7 slashes, found " << slashCount << std::endl;
+        return false;
+    }
+    
+    // Final rank must have exactly 8 squares
+    if (squareCount != 8) {
+        std::cerr << "Error: Final rank has " << squareCount << " squares, expected 8" << std::endl;
+        return false;
+    }
+    
+    // Must have exactly one king of each color
+    if (!hasWhiteKing || !hasBlackKing) {
+        std::cerr << "Error: Missing king - White: " << hasWhiteKing << ", Black: " << hasBlackKing << std::endl;
+        return false;
+    }
+    
+    if (whiteKingCount != 1 || blackKingCount != 1) {
+        std::cerr << "Error: Invalid king count - White: " << whiteKingCount << ", Black: " << blackKingCount << std::endl;
+        return false;
+    }
+    
+    return true;
+}
 }
