@@ -633,6 +633,32 @@ else if (trimmedCommand == "eval")
                std::cerr << "Error in evaluation test: " << e.what() << std::endl;
            }
        }
+       else if (trimmedCommand == "uci")
+        {
+            try
+            {
+                std::cout << "=== Testing UCI Protocol ===" << std::endl;
+                std::cout << "Switching to UCI mode..." << std::endl;
+                std::cout << "Note: This will change to UCI protocol." << std::endl;
+                std::cout << "Send 'uci' command to start UCI session." << std::endl;
+                
+                // For testing, we'll create a temporary UCI instance
+                UCIProtocol uci(game, engine);
+                
+                // Test some UCI commands
+                std::cout << "\nTesting UCI identification:" << std::endl;
+                uci.processCommand("uci");
+                
+                std::cout << "\nTesting ready status:" << std::endl;
+                uci.processCommand("isready");
+                
+                std::cout << "\nUCI test complete. Use './chess_engine --uci' for full UCI mode." << std::endl;
+            }
+            catch (const std::exception &e)
+            {
+                std::cerr << "Error testing UCI: " << e.what() << std::endl;
+            }
+        }
 
             catch (const std::exception &e)
             {
@@ -723,3 +749,4 @@ void UI::displayHelp() const
     std::cout << "  regression     - Run quick performance regression test" << std::endl;
     std::cout << "  eval           - Show detailed position evaluation" << std::endl;
     std::cout << "  evaltest       - Test evaluation on known positions" << std::endl;
+    std::cout << "  uci            - Test UCI protocol commands" << std::endl;

@@ -5,7 +5,7 @@
 #include "game.h"
 #include "engine.h"
 #include "tactical_tests.h"
-
+#include "uci.h"
 class UI
 {
 private:

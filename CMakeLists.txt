@@ -17,6 +17,7 @@ set(SOURCES
     transposition.cpp
     perft.cpp
     tactical_tests.cpp
+    uci.cpp
 )
 
 set(HEADERS
@@ -32,6 +33,7 @@ set(HEADERS
     board_state.h
     perft.h
     tactical_tests.h
+    uci.h
 )
 
 # Create executable
