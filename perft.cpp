@@ -3,7 +3,7 @@
 #include <iostream>
 #include <iomanip>
 #include <chrono>
-#include <set>        
+#include <set>
 #include <climits>
 
 PerftTester::PerftResult PerftTester::perft(Board& board, int depth) {
@@ -309,8 +309,9 @@ bool PerftTester::runTestSuite() {
     std::cout << std::string(60, '=') << std::endl;
     
     return allPassed;
+}
 
-    bool PerftTester::testEnPassant() {
+bool PerftTester::testEnPassant() {
     std::cout << "\n--- Testing En Passant ---" << std::endl;
     
     bool allPassed = true;
@@ -541,7 +542,6 @@ bool PerftTester::testPromotion() {
     std::cout << "Promotion Test Result: " << (allPassed ? "✓ PASSED" : "✗ FAILED") << std::endl;
     return allPassed;
 }
-// ADD these methods at the END of perft.cpp (before the final closing brace)
 
 bool PerftTester::runBenchmarkSuite() {
     std::cout << "\n" << std::string(70, '=') << std::endl;
@@ -798,5 +798,4 @@ void PerftTester::printBenchmarkReport(const std::vector<BenchmarkResult>& resul
         int avgSpeed = static_cast<int>((totalNodes * 1000) / totalTime);
         std::cout << "Average speed: " << avgSpeed << " nodes/sec" << std::endl;
     }
-}
 }
