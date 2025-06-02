@@ -3,6 +3,8 @@
 #include <iostream>
 #include <iomanip>
 #include <chrono>
+#include <set>        
+#include <climits>
 
 PerftTester::PerftResult PerftTester::perft(Board& board, int depth) {
     return perftRecursive(board, depth, true);
@@ -538,5 +540,263 @@ bool PerftTester::testPromotion() {
     
     std::cout << "Promotion Test Result: " << (allPassed ? "✓ PASSED" : "✗ FAILED") << std::endl;
     return allPassed;
+}
+// ADD these methods at the END of perft.cpp (before the final closing brace)
+
+bool PerftTester::runBenchmarkSuite() {
+    std::cout << "\n" << std::string(70, '=') << std::endl;
+    std::cout << "=== PERFT PERFORMANCE BENCHMARK SUITE ===" << std::endl;
+    std::cout << std::string(70, '=') << std::endl;
+    
+    // Define comprehensive benchmark positions
+    std::vector<PerftBenchmark> benchmarks = {
+        // Starting position - fundamental test
+        PerftBenchmark(
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "Starting Position",
+            5, 4865609, 1000, 1000000  // 1M nodes/sec minimum
+        ),
+        
+        // Kiwipete - complex tactical position
+        PerftBenchmark(
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "Kiwipete Position",
+            4, 4085603, 2000, 800000   // 800K nodes/sec minimum
+        ),
+        
+        // Position 3 - endgame with promotions
+        PerftBenchmark(
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+            "Position 3 (Endgame)",
+            5, 674624, 500, 500000     // 500K nodes/sec minimum
+        ),
+        
+        // Position 4 - complex middle game
+        PerftBenchmark(
+            "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+            "Position 4 (Complex)",
+            4, 422333, 800, 400000     // 400K nodes/sec minimum
+        ),
+        
+        // Position 5 - en passant and promotion
+        PerftBenchmark(
+            "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+            "Position 5 (EP + Promotion)",
+            4, 2103487, 1500, 600000   // 600K nodes/sec minimum
+        ),
+        
+        // Speed test position - simple but deep
+        PerftBenchmark(
+            "8/8/8/8/8/8/8/R3K2R w KQ - 0 1",
+            "Speed Test (Rooks + King)",
+            6, 764643, 200, 2000000    // 2M nodes/sec minimum (simple position)
+        )
+    };
+    
+    std::vector<BenchmarkResult> results;
+    int passedCorrectness = 0;
+    int passedPerformance = 0;
+    int totalTests = benchmarks.size();
+    
+    std::cout << "\nRunning " << totalTests << " benchmark tests...\n" << std::endl;
+    
+    // Run each benchmark
+    for (size_t i = 0; i < benchmarks.size(); i++) {
+        std::cout << "[" << (i + 1) << "/" << totalTests << "] Testing: " 
+                  << benchmarks[i].description << std::endl;
+        
+        BenchmarkResult result = runSingleBenchmark(benchmarks[i]);
+        results.push_back(result);
+        
+        if (result.correctness) passedCorrectness++;
+        if (result.performance) passedPerformance++;
+        
+        // Print immediate result
+        std::cout << "  Correctness: " << (result.correctness ? "✓ PASS" : "✗ FAIL");
+        std::cout << " | Performance: " << (result.performance ? "✓ PASS" : "✗ FAIL");
+        std::cout << " | " << result.nodesPerSec << " nodes/sec" << std::endl;
+        
+        if (!result.correctness || !result.performance) {
+            std::cout << "  Error: " << result.errorMessage << std::endl;
+        }
+        std::cout << std::endl;
+    }
+    
+    // Print comprehensive report
+    printBenchmarkReport(results);
+    
+    // Final summary
+    std::cout << "\n" << std::string(70, '=') << std::endl;
+    std::cout << "=== BENCHMARK RESULTS SUMMARY ===" << std::endl;
+    std::cout << "Correctness: " << passedCorrectness << "/" << totalTests << " tests passed" << std::endl;
+    std::cout << "Performance: " << passedPerformance << "/" << totalTests << " tests passed" << std::endl;
+    
+    bool allPassed = (passedCorrectness == totalTests && passedPerformance == totalTests);
+    std::cout << "Overall Result: " << (allPassed ? "🎉 ALL BENCHMARKS PASSED!" : "⚠️  SOME BENCHMARKS FAILED") << std::endl;
+    std::cout << std::string(70, '=') << std::endl;
+    
+    return allPassed;
+}
+
+PerftTester::BenchmarkResult PerftTester::runSingleBenchmark(const PerftBenchmark& benchmark) {
+    BenchmarkResult result;
+    result.testName = benchmark.description;
+    result.expectedNodes = benchmark.expectedNodes;
+    
+    try {
+        // Setup board
+        Board board;
+        board.setupFromFEN(benchmark.position);
+        
+        // Run perft with timing
+        auto startTime = std::chrono::high_resolution_clock::now();
+        PerftResult perftResult = perft(board, benchmark.depth);
+        auto endTime = std::chrono::high_resolution_clock::now();
+        
+        // Calculate timing metrics
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+        result.timeMs = duration.count();
+        result.actualNodes = perftResult.nodes;
+        
+        // Calculate nodes per second (avoid division by zero)
+        if (result.timeMs > 0) {
+            result.nodesPerSec = static_cast<int>((result.actualNodes * 1000) / result.timeMs);
+        } else {
+            result.nodesPerSec = result.actualNodes > 0 ? INT_MAX : 0;
+        }
+        
+        // Check correctness
+        result.correctness = (result.actualNodes == result.expectedNodes);
+        if (!result.correctness) {
+            result.errorMessage += "Expected " + std::to_string(result.expectedNodes) + 
+                                 " nodes, got " + std::to_string(result.actualNodes) + ". ";
+        }
+        
+        // Check performance requirements
+        bool timeOk = (benchmark.maxTimeMs <= 0) || (result.timeMs <= benchmark.maxTimeMs);
+        bool speedOk = (benchmark.minNodesPerSec <= 0) || (result.nodesPerSec >= benchmark.minNodesPerSec);
+        
+        result.performance = timeOk && speedOk;
+        
+        if (!timeOk) {
+            result.errorMessage += "Too slow: " + std::to_string(result.timeMs) + 
+                                 "ms > " + std::to_string(benchmark.maxTimeMs) + "ms limit. ";
+        }
+        
+        if (!speedOk) {
+            result.errorMessage += "Too slow: " + std::to_string(result.nodesPerSec) + 
+                                 " nodes/sec < " + std::to_string(benchmark.minNodesPerSec) + " required. ";
+        }
+        
+    } catch (const std::exception& e) {
+        result.correctness = false;
+        result.performance = false;
+        result.errorMessage = "Exception: " + std::string(e.what());
+    } catch (...) {
+        result.correctness = false;
+        result.performance = false;
+        result.errorMessage = "Unknown exception occurred";
+    }
+    
+    return result;
+}
+
+bool PerftTester::runPerformanceRegression() {
+    std::cout << "\n=== PERFORMANCE REGRESSION TEST ===" << std::endl;
+    
+    // Quick regression test with key positions
+    std::vector<PerftBenchmark> regressionTests = {
+        PerftBenchmark(
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "Starting Position (Regression)",
+            4, 197281, 500, 500000
+        ),
+        PerftBenchmark(
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "Kiwipete (Regression)",
+            3, 97862, 300, 300000
+        )
+    };
+    
+    bool allPassed = true;
+    for (const auto& test : regressionTests) {
+        BenchmarkResult result = runSingleBenchmark(test);
+        std::cout << test.description << ": ";
+        
+        if (result.correctness && result.performance) {
+            std::cout << "✓ PASS (" << result.nodesPerSec << " nodes/sec)" << std::endl;
+        } else {
+            std::cout << "✗ FAIL - " << result.errorMessage << std::endl;
+            allPassed = false;
+        }
+    }
+    
+    return allPassed;
+}
+
+void PerftTester::printBenchmarkReport(const std::vector<BenchmarkResult>& results) {
+    std::cout << "\n" << std::string(90, '=') << std::endl;
+    std::cout << "=== DETAILED BENCHMARK REPORT ===" << std::endl;
+    std::cout << std::string(90, '=') << std::endl;
+    
+    // Table header
+    std::cout << std::left << std::setw(25) << "Test Name" 
+              << std::setw(12) << "Nodes" 
+              << std::setw(8) << "Time(ms)" 
+              << std::setw(12) << "Nodes/sec"
+              << std::setw(12) << "Correct"
+              << std::setw(12) << "Fast"
+              << std::setw(15) << "Status" << std::endl;
+    std::cout << std::string(90, '-') << std::endl;
+    
+    // Performance statistics
+    int totalCorrect = 0;
+    int totalFast = 0;
+    int maxSpeed = 0;
+    int minSpeed = INT_MAX;
+    long totalNodes = 0;
+    int totalTime = 0;
+    
+    for (const auto& result : results) {
+        // Print row
+        std::cout << std::left << std::setw(25) << result.testName.substr(0, 24)
+                  << std::setw(12) << result.actualNodes
+                  << std::setw(8) << result.timeMs
+                  << std::setw(12) << result.nodesPerSec
+                  << std::setw(12) << (result.correctness ? "✓" : "✗")
+                  << std::setw(12) << (result.performance ? "✓" : "✗")
+                  << std::setw(15);
+        
+        if (result.correctness && result.performance) {
+            std::cout << "PASS";
+        } else {
+            std::cout << "FAIL";
+        }
+        std::cout << std::endl;
+        
+        // Update statistics
+        if (result.correctness) totalCorrect++;
+        if (result.performance) totalFast++;
+        if (result.nodesPerSec > maxSpeed) maxSpeed = result.nodesPerSec;
+        if (result.nodesPerSec < minSpeed && result.nodesPerSec > 0) minSpeed = result.nodesPerSec;
+        totalNodes += result.actualNodes;
+        totalTime += result.timeMs;
+    }
+    
+    std::cout << std::string(90, '-') << std::endl;
+    
+    // Summary statistics
+    std::cout << "\n=== PERFORMANCE STATISTICS ===" << std::endl;
+    std::cout << "Tests passed (correctness): " << totalCorrect << "/" << results.size() << std::endl;
+    std::cout << "Tests passed (performance): " << totalFast << "/" << results.size() << std::endl;
+    std::cout << "Fastest speed: " << maxSpeed << " nodes/sec" << std::endl;
+    std::cout << "Slowest speed: " << (minSpeed == INT_MAX ? 0 : minSpeed) << " nodes/sec" << std::endl;
+    std::cout << "Total nodes calculated: " << totalNodes << std::endl;
+    std::cout << "Total time: " << totalTime << "ms" << std::endl;
+    
+    if (totalTime > 0) {
+        int avgSpeed = static_cast<int>((totalNodes * 1000) / totalTime);
+        std::cout << "Average speed: " << avgSpeed << " nodes/sec" << std::endl;
+    }
 }
 }

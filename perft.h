@@ -21,18 +21,43 @@ public:
                         promotions(0), checks(0), checkmates(0) {}
     };
 
-    // Run perft test from a given position
+    struct PerftBenchmark {
+        std::string position;
+        std::string description;
+        int depth;
+        uint64_t expectedNodes;
+        int maxTimeMs;  
+        int minNodesPerSec; 
+        
+        PerftBenchmark(const std::string& pos, const std::string& desc, int d, 
+                      uint64_t nodes, int maxTime, int minNPS = 0)
+            : position(pos), description(desc), depth(d), expectedNodes(nodes), 
+              maxTimeMs(maxTime), minNodesPerSec(minNPS) {}
+    };
+    
+    struct BenchmarkResult {
+        std::string testName;
+        bool correctness;      
+        bool performance;      
+        uint64_t actualNodes;
+        uint64_t expectedNodes;
+        int timeMs;
+        int nodesPerSec;
+        std::string errorMessage;
+        
+        BenchmarkResult() : correctness(false), performance(false), actualNodes(0), 
+                           expectedNodes(0), timeMs(0), nodesPerSec(0) {}
+    };
+    
+
+    static bool runBenchmarkSuite();
+    static BenchmarkResult runSingleBenchmark(const PerftBenchmark& benchmark);
+    static bool runPerformanceRegression();
+    static void printBenchmarkReport(const std::vector<BenchmarkResult>& results);
     static PerftResult perft(Board &board, int depth);
-
-    // Run perft with detailed breakdown (divide)
     static void perftDivide(Board &board, int depth);
-
-    // Run standard test suite
     static bool runTestSuite();
-
-    // Test individual position
     static bool testPosition(const std::string &fen, int depth, uint64_t expectedNodes);
-
     static bool testEnPassant();
     static bool testCastling();
     static bool testPromotion();
