@@ -777,10 +777,18 @@ Move Engine::getBestMove()
         nullMoveAllowed[i] = true;
     }
 
-    // NEW: Reset extension counters
+   // NEW: Reset extension counters
     totalExtensionsInPath = 0;
     for (int i = 0; i < MAX_PLY; i++) {
         extensionsUsed[i] = 0;
+    }
+
+    // NEW: Reset pruning tracking
+    for (int i = 0; i < MAX_PLY; i++) {
+        pruningUsedAtPly[i] = 0;
+    }
+    for (int i = 0; i < 5; i++) {
+        pruningStats[i] = 0;
     }
 
     // Use iterative deepening to find the best move
@@ -1864,13 +1872,18 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
 
     pv.clear();
 
-    // Probe the transposition table
+   // 1. PRIORITY: Probe the transposition table (ALWAYS FIRST)
     if (ply > 0 && transpositionTable.probe(hashKey, depth, alpha, beta, score, ttMove))
     {
         return score; // Return cached result if available (but don't use TT at root)
     }
 
-    // NULL MOVE PRUNING INTEGRATION
+    // Reset pruning tracking for this node
+    if (ply >= 0 && ply < MAX_PLY) {
+        pruningUsedAtPly[ply] = 0;
+    }
+
+    // 2. PRIORITY: NULL MOVE PRUNING (Highest reduction potential)
     // Add null move pruning right after TT probe but before move generation
     if (depth >= NULL_MOVE_MIN_DEPTH && 
         ply > 0 && // Don't use at root
@@ -1900,8 +1913,10 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
         // Re-enable null move for next iteration
         nullMoveAllowed[ply + 1] = true;
         
-        // If null move caused beta cutoff, prune this branch
+       // If null move caused beta cutoff, prune this branch
         if (nullScore >= beta) {
+            trackPruningUsage("null_move", depth, ply);
+            
             // Verification search for high values to avoid zugzwang
             if (depth >= NULL_MOVE_VERIFICATION_DEPTH && nullScore >= beta + 300) {
                 std::vector<Move> verifyPV;
@@ -1922,8 +1937,9 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
         return evaluatePosition(board);
     }
 
-    // NEW: RAZORING - Prune hopeless subtrees
-    if (depth >= 1 && depth <= 4 && ply > 0) {
+    // 3. PRIORITY: RAZORING - Prune hopeless subtrees (Medium reduction)
+    if (ENABLE_RAZORING && depth >= 1 && depth <= 4 && ply > 0 && 
+        shouldAllowMultiplePruning(depth, ply, board.isInCheck())) {
         int staticEval = evaluatePosition(board);
         
         if (canUseRazoring(depth, alpha, staticEval, board.isInCheck())) {
@@ -1942,12 +1958,14 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
                     std::vector<Move> verifyPV;
                     int verifyScore = pvSearch(board, depth - 1, alpha - 1, alpha, maximizingPlayer,
                                              verifyPV, hashKey, ply, lastMove);
-                    if (verifyScore < alpha) {
-                        return razorScore; // Confirmed pruning
-                    }
-                } else {
-                    return razorScore; // Confident pruning
+                   if (verifyScore < alpha) {
+                    trackPruningUsage("razoring", depth, ply);
+                    return razorScore; // Confirmed pruning
                 }
+            } else {
+                trackPruningUsage("razoring", depth, ply);
+                return razorScore; // Confident pruning
+            }
             }
         }
     }
@@ -2054,23 +2072,29 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
             int eval = evaluatePosition(board);
             bool isCapture = board.getPieceAt(move.to) != nullptr;
             
-            // 1. Static Futility Pruning (for quiet moves)
-            if (!foundPV && depth <= 3 && !isCapture && i >= 3) {
-                if (canUseFutilityPruning(depth, alpha, beta, eval, board.isInCheck())) {
+          // 4. PRIORITY: FUTILITY PRUNING (Local move skipping)
+            if (ENABLE_FUTILITY_PRUNING && shouldAllowMultiplePruning(depth, ply, board.isInCheck())) {
+                // 4a. Static Futility Pruning (for quiet moves)
+                if (!foundPV && depth <= 3 && !isCapture && i >= 3) {
+                    if (canUseFutilityPruning(depth, alpha, beta, eval, board.isInCheck())) {
+                        trackPruningUsage("futility", depth, ply);
+                        continue;
+                    }
+                }
+                
+                // 4b. Reverse Futility Pruning (stand-pat)
+                if (!foundPV && depth <= 2 && !board.isInCheck()) {
+                    if (canUseReverseFutilityPruning(depth, eval, beta)) {
+                        trackPruningUsage("futility", depth, ply);
+                        return eval;
+                    }
+                }
+                
+                // 4c. Delta Pruning for captures
+                if (isCapture && canUseDeltaPruning(eval, alpha, move, board)) {
+                    trackPruningUsage("futility", depth, ply);
                     continue;
                 }
-            }
-            
-            // 2. Reverse Futility Pruning (stand-pat)
-            if (!foundPV && depth <= 2 && !board.isInCheck()) {
-                if (canUseReverseFutilityPruning(depth, eval, beta)) {
-                    return eval;
-                }
-            }
-            
-            // 3. Delta Pruning for captures
-            if (isCapture && canUseDeltaPruning(eval, alpha, move, board)) {
-                continue;
             }
 
             bool isPVMoveCheck = false;
@@ -2114,10 +2138,15 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
                     moveExtension = std::max(moveExtension, 1);
                 }
             }
-
-         // Calculate LMR reduction using enhanced method
-            int lmrReduction = calculateAdvancedLMRReduction(depth, i, foundPV, isCapture, isCheckMove, 
+// 5. PRIORITY: LMR (Per-move reduction - lowest priority)
+            int lmrReduction = 0;
+            if (ENABLE_LMR) {
+                lmrReduction = calculateAdvancedLMRReduction(depth, i, foundPV, isCapture, isCheckMove, 
                                                            isKillerMoveCheck, board, move, ply);
+                if (lmrReduction > 0) {
+                    trackPruningUsage("lmr", depth, ply);
+                }
+            }
 
             // Final depth after adjustments
             int newDepth = depth - 1 + moveExtension - lmrReduction;
@@ -2979,6 +3008,227 @@ bool Engine::hasMaterialImbalance(const Board& board) const
         }
     }
     
-    // Material imbalance suggests tactical potential
-    return (abs(whiteMinor - blackMinor) > 1) || (abs(whiteMajor - blackMajor) > 0);
+   return (abs(whiteMinor - blackMinor) > 1) || (abs(whiteMajor - blackMajor) > 0);
+}
+
+// Pruning Integration Methods
+bool Engine::shouldAllowMultiplePruning(int depth, int ply, bool inCheck) const
+{
+    // Never allow multiple aggressive pruning when in check
+    if (inCheck) {
+        return false;
+    }
+    
+    // At shallow depths, be more conservative
+    if (depth <= 2) {
+        return false;
+    }
+    
+    // Check how many pruning techniques already used at this ply
+    if (ply >= 0 && ply < MAX_PLY) {
+        return pruningUsedAtPly[ply] < PRUNING_CONFLICT_THRESHOLD;
+    }
+    
+    return true;
+}
+
+int Engine::getPruningPriority(const std::string& pruningType, int depth, int ply) const
+{
+    // Priority order (higher number = higher priority)
+    if (pruningType == "null_move") return 100;      // Highest reduction
+    if (pruningType == "razoring") return 80;        // Medium reduction
+    if (pruningType == "futility") return 60;        // Local move skipping
+    if (pruningType == "lmr") return 40;            // Per-move reduction
+    
+    return 0;
+}
+
+void Engine::trackPruningUsage(const std::string& pruningType, int depth, int ply) const
+{
+    // Track usage at this ply
+    if (ply >= 0 && ply < MAX_PLY) {
+        pruningUsedAtPly[ply]++;
+    }
+    
+    // Update global statistics
+    if (pruningType == "null_move") pruningStats[0]++;
+    else if (pruningType == "razoring") pruningStats[1]++;
+    else if (pruningType == "futility") pruningStats[2]++;
+    else if (pruningType == "lmr") pruningStats[3]++;
+    
+    // Track conflicts
+    if (ply >= 0 && ply < MAX_PLY && pruningUsedAtPly[ply] > 1) {
+        pruningStats[4]++; // Conflict count
+    // NEW: Parameter Tuning Framework Implementation
+void Engine::initializeTuningParameters()
+{
+    tuningParameters.clear();
+    
+    // Add tunable parameters (using const_cast to modify const members for tuning)
+    tuningParameters.push_back({"NULL_MOVE_MIN_DEPTH", const_cast<int*>(&NULL_MOVE_MIN_DEPTH), 2, 5, 1, NULL_MOVE_MIN_DEPTH});
+    tuningParameters.push_back({"LMR_MIN_DEPTH", const_cast<int*>(&LMR_MIN_DEPTH), 2, 5, 1, LMR_MIN_DEPTH});
+    tuningParameters.push_back({"LMR_MIN_MOVE_INDEX", const_cast<int*>(&LMR_MIN_MOVE_INDEX), 3, 6, 1, LMR_MIN_MOVE_INDEX});
+    tuningParameters.push_back({"MAX_EXTENSIONS_PER_PLY", const_cast<int*>(&MAX_EXTENSIONS_PER_PLY), 1, 4, 1, MAX_EXTENSIONS_PER_PLY});
+    tuningParameters.push_back({"MAX_TOTAL_EXTENSIONS", const_cast<int*>(&MAX_TOTAL_EXTENSIONS), 10, 25, 5, MAX_TOTAL_EXTENSIONS});
+    
+    std::cout << "Initialized " << tuningParameters.size() << " tuning parameters" << std::endl;
+}
+
+void Engine::runParameterTuning(const std::string& testSuite)
+{
+    std::cout << "=== AUTOMATED PARAMETER TUNING ===" << std::endl;
+    
+    initializeTuningParameters();
+    
+    // Load test positions (EPD format)
+    std::vector<std::string> testPositions = {
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+        "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+        "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"
+    };
+    
+    // Baseline performance
+    double baselineScore = evaluateParameterSet(testPositions);
+    std::cout << "Baseline performance: " << baselineScore << std::endl;
+    
+    // Test each parameter
+    for (auto& param : tuningParameters) {
+        std::cout << "\nTuning parameter: " << param.name << std::endl;
+        
+        int bestValue = *param.valuePtr;
+        double bestScore = baselineScore;
+        
+        // Test different values
+        for (int value = param.minValue; value <= param.maxValue; value += param.step) {
+            if (value == param.originalValue) continue; // Skip original value
+            
+            *param.valuePtr = value;
+            double score = evaluateParameterSet(testPositions);
+            
+            std::cout << "  " << param.name << "=" << value << " -> Score: " << score << std::endl;
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestValue = value;
+            }
+        }
+        
+        // Set best value
+        *param.valuePtr = bestValue;
+        tuningResults[param.name] = bestScore;
+        
+        std::cout << "  Best " << param.name << ": " << bestValue 
+                  << " (improvement: " << (bestScore - baselineScore) << ")" << std::endl;
+    }
+    
+    printTuningResults();
+}
+
+bool Engine::runABTest(const std::string& parameterName, int newValue, int testGames)
+{
+    std::cout << "Running A/B test for " << parameterName << " = " << newValue << std::endl;
+    
+    // Find parameter
+    auto it = std::find_if(tuningParameters.begin(), tuningParameters.end(),
+                          [&](const TuningParameter& p) { return p.name == parameterName; });
+    
+    if (it == tuningParameters.end()) {
+        std::cout << "Parameter not found!" << std::endl;
+        return false;
+    }
+    
+    int originalValue = *it->valuePtr;
+    
+    // Test positions
+    std::vector<std::string> testPositions = {
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
+    };
+    
+    // Baseline test
+    double baselineScore = evaluateParameterSet(testPositions);
+    
+    // Modified test
+    *it->valuePtr = newValue;
+    double newScore = evaluateParameterSet(testPositions);
+    
+    // Calculate statistical significance (simplified)
+    double improvement = newScore - baselineScore;
+    double improvementPercent = (improvement / baselineScore) * 100.0;
+    
+    bool isSignificant = abs(improvementPercent) > 2.0; // 2% threshold
+    
+    std::cout << "A/B Test Results:" << std::endl;
+    std::cout << "  Baseline: " << baselineScore << std::endl;
+    std::cout << "  New:      " << newScore << std::endl;
+    std::cout << "  Change:   " << improvementPercent << "%" << std::endl;
+    std::cout << "  Significant: " << (isSignificant ? "YES" : "NO") << std::endl;
+    
+    if (!isSignificant || improvement < 0) {
+        // Revert to original value
+        *it->valuePtr = originalValue;
+        return false;
+    }
+    
+    return true;
+}
+
+double Engine::evaluateParameterSet(const std::vector<std::string>& testPositions)
+{
+    double totalScore = 0.0;
+    int totalTests = 0;
+    
+    for (const auto& fen : testPositions) {
+        try {
+            Game testGame;
+            testGame.newGameFromFEN(fen);
+            
+            auto startTime = std::chrono::high_resolution_clock::now();
+            
+            // Quick depth-limited search
+            int oldDepth = maxDepth;
+            maxDepth = 4; // Fast evaluation
+            
+            Move bestMove = getBestMove();
+            
+            auto endTime = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+            
+            maxDepth = oldDepth; // Restore depth
+            
+            // Score based on nodes per second and move quality
+            double nps = (duration.count() > 0) ? (getNodesSearched() * 1000.0 / duration.count()) : 0;
+            double score = nps / 1000.0; // Convert to thousands
+            
+            totalScore += score;
+            totalTests++;
+            
+        } catch (...) {
+            // Skip problematic positions
+            continue;
+        }
+    }
+    
+    return totalTests > 0 ? (totalScore / totalTests) : 0.0;
+}
+
+void Engine::printTuningResults() const
+{
+    std::cout << "\n=== TUNING RESULTS SUMMARY ===" << std::endl;
+    
+    for (const auto& param : tuningParameters) {
+        auto it = tuningResults.find(param.name);
+        if (it != tuningResults.end()) {
+            std::cout << param.name << ": " << *param.valuePtr 
+                      << " (was " << param.originalValue << ") -> Score: " << it->second << std::endl;
+        }
+    }
+    
+    std::cout << "\nPruning Statistics:" << std::endl;
+    std::cout << "Null Move: " << pruningStats[0] << std::endl;
+    std::cout << "Razoring: " << pruningStats[1] << std::endl;
+    std::cout << "Futility: " << pruningStats[2] << std::endl;
+    std::cout << "LMR: " << pruningStats[3] << std::endl;
+    std::cout << "Conflicts: " << pruningStats[4] << std::endl;
 }

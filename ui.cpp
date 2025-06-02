@@ -500,6 +500,69 @@ bool UI::processCommand(const std::string &command)
                     std::cout << "Perft depth must be between 1 and 6!" << std::endl;
                 }
             }
+            else if (trimmedCommand == "tuning")
+            {
+                try
+                {
+                    std::cout << "Running automated parameter tuning..." << std::endl;
+                    engine.runParameterTuning("standard");
+                }
+                catch (const std::exception &e)
+                {
+                    std::cerr << "Error running parameter tuning: " << e.what() << std::endl;
+                }
+            }
+            else if (trimmedCommand.substr(0, 6) == "abtest")
+            {
+                try
+                {
+                    if (trimmedCommand.length() > 7)
+                    {
+                        std::string params = trimmedCommand.substr(7);
+                        size_t spacePos = params.find(' ');
+                        if (spacePos != std::string::npos)
+                        {
+                            std::string paramName = params.substr(0, spacePos);
+                            int newValue = std::stoi(params.substr(spacePos + 1));
+
+                            bool success = engine.runABTest(paramName, newValue, 10);
+                            std::cout << "A/B Test " << (success ? "PASSED" : "FAILED") << std::endl;
+                        }
+                    }
+                    else
+                    {
+                        std::cout << "Usage: abtest <parameter_name> <new_value>" << std::endl;
+                    }
+                }
+                catch (const std::exception &e)
+                {
+                    std::cerr << "Error running A/B test: " << e.what() << std::endl;
+                }
+            }
+            else if (trimmedCommand == "testimprovements")
+            {
+                try
+                {
+                    std::cout << "Testing search improvements..." << std::endl;
+
+                    // Test tactical position
+                    game.newGameFromFEN("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
+
+                    auto startTime = std::chrono::high_resolution_clock::now();
+                    Move bestMove = engine.getBestMove();
+                    auto endTime = std::chrono::high_resolution_clock::now();
+
+                    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+
+                    std::cout << "Best move: " << bestMove.toString() << std::endl;
+                    std::cout << "Nodes searched: " << engine.getNodesSearched() << std::endl;
+                    std::cout << "Time taken: " << duration.count() << "ms" << std::endl;
+                }
+                catch (const std::exception &e)
+                {
+                    std::cerr << "Error testing improvements: " << e.what() << std::endl;
+                }
+            }
             catch (const std::exception &e)
             {
                 std::cout << "Invalid perft depth! Usage: perft <depth>" << std::endl;
@@ -572,6 +635,9 @@ void UI::displayHelp() const
     std::cout << "  cleartt        - Clear the transposition table" << std::endl;
     std::cout << "  quit/exit      - Exit the program" << std::endl;
     std::cout << "  test/tactics   - Run tactical test suite" << std::endl;
+    std::cout << "  tuning         - Run automated parameter tuning" << std::endl;
+    std::cout << "  abtest [param] [value] - Run A/B test for parameter" << std::endl;
+    std::cout << "  testimprovements - Test search improvements on tactical position" << std::endl;
     std::cout << "  time [ms]      - Set time per move in milliseconds" << std::endl;
     std::cout << "  time off       - Disable time management" << std::endl;
     std::cout << std::endl;
@@ -584,4 +650,3 @@ void UI::displayHelp() const
     std::cout << "  perft          - Run perft test suite" << std::endl;
     std::cout << "  benchmark      - Run performance benchmark suite" << std::endl;
     std::cout << "  regression     - Run quick performance regression test" << std::endl;
-    std::cout << "  test/tactics   - Run tactical test suite" << std::endl;

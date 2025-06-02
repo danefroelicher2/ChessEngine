@@ -57,6 +57,10 @@ private:
     int extensionsUsed[MAX_PLY];                     // Extensions used at each ply
     int totalExtensionsInPath;                       // Total extensions in current search path
 
+    // NEW: Pruning Integration Tracking
+    mutable int pruningUsedAtPly[MAX_PLY];          // Track pruning techniques used per ply
+    mutable long pruningStats[5];                    // Stats: [null_move, razoring, futility, lmr, conflicts]
+
     // TIME MANAGEMENT VARIABLES
     int timeAllocated; // time in milliseconds allocated for this move
     int timeBuffer;    // safety buffer to avoid timeout
@@ -147,8 +151,14 @@ private:
     static const double LMR_BASE_REDUCTION = 0.85; // Base reduction factor
     static const double LMR_DEPTH_FACTOR = 0.6;    // How much depth affects reduction
     static const double LMR_MOVE_FACTOR = 0.4;     // How much move index affects reduction
-    static const double LMR_POSITION_FACTOR = 0.3; // Position-dependent factor
-    
+  static const double LMR_POSITION_FACTOR = 0.3; // Position-dependent factor
+
+    // NEW: Pruning Integration Control
+    static const bool ENABLE_NULL_MOVE_PRUNING = true;
+    static const bool ENABLE_RAZORING = true;
+    static const bool ENABLE_FUTILITY_PRUNING = true;
+    static const bool ENABLE_LMR = true;
+    static const int PRUNING_CONFLICT_THRESHOLD = 2; // Max pruning techniques per node    
 
     // PIECE VALUES
     static const int PAWN_VALUE = 100;
@@ -236,8 +246,12 @@ private:
     bool canUseRazoring(int depth, int alpha, int eval, bool inCheck) const;
     int getRazoringMargin(int depth, const Board& board) const;
     bool hasNearPromotionPawns(const Board& board, Color color) const;
-    bool hasMaterialImbalance(const Board& board) const;
+  bool hasMaterialImbalance(const Board& board) const;
 
+    // NEW: Pruning Integration Methods
+    bool shouldAllowMultiplePruning(int depth, int ply, bool inCheck) const;
+    int getPruningPriority(const std::string& pruningType, int depth, int ply) const;
+    void trackPruningUsage(const std::string& pruningType, int depth, int ply) const;
 
 
     // BUTTERFLY HISTORY MANAGEMENT
@@ -273,7 +287,25 @@ private:
     void clearEnhancedTables();
     void clearSEECache();
 
+    // NEW: Parameter Tuning Framework
+    struct TuningParameter {
+        std::string name;
+        int* valuePtr;
+        int minValue;
+        int maxValue;
+        int step;
+        int originalValue;
+    };
+    
+    void initializeTuningParameters();
+    void runParameterTuning(const std::string& testSuite);
+    bool runABTest(const std::string& parameterName, int newValue, int testGames);
+    void printTuningResults() const;
+    double evaluateParameterSet(const std::vector<std::string>& testPositions);
+    
+    // Tuning parameter storage
+    std::vector<TuningParameter> tuningParameters;
+    mutable std::map<std::string, double> tuningResults;
     
 };
-
 #endif // ENGINE_H
