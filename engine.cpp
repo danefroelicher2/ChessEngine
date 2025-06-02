@@ -3059,7 +3059,10 @@ void Engine::trackPruningUsage(const std::string& pruningType, int depth, int pl
     // Track conflicts
     if (ply >= 0 && ply < MAX_PLY && pruningUsedAtPly[ply] > 1) {
         pruningStats[4]++; // Conflict count
-    // NEW: Parameter Tuning Framework Implementation
+    }
+}
+
+// NEW: Parameter Tuning Framework Implementation
 void Engine::initializeTuningParameters()
 {
     tuningParameters.clear();
