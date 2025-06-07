@@ -500,71 +500,75 @@ bool UI::processCommand(const std::string &command)
                     std::cout << "Perft depth must be between 1 and 6!" << std::endl;
                 }
             }
-            else if (trimmedCommand == "tuning")
+            catch (const std::exception &e)
             {
-                try
-                {
-                    std::cout << "Running automated parameter tuning..." << std::endl;
-                    engine.runParameterTuning("standard");
-                }
-                catch (const std::exception &e)
-                {
-                    std::cerr << "Error running parameter tuning: " << e.what() << std::endl;
-                }
+                std::cout << "Invalid perft depth! Usage: perft <depth>" << std::endl;
             }
-            else if (trimmedCommand.substr(0, 6) == "abtest")
+        }
+        else if (trimmedCommand == "tuning")
+        {
+            try
             {
-                try
+                std::cout << "Running automated parameter tuning..." << std::endl;
+                engine.runParameterTuning("standard");
+            }
+            catch (const std::exception &e)
+            {
+                std::cerr << "Error running parameter tuning: " << e.what() << std::endl;
+            }
+        }
+        else if (trimmedCommand.substr(0, 6) == "abtest")
+        {
+            try
+            {
+                if (trimmedCommand.length() > 7)
                 {
-                    if (trimmedCommand.length() > 7)
+                    std::string params = trimmedCommand.substr(7);
+                    size_t spacePos = params.find(' ');
+                    if (spacePos != std::string::npos)
                     {
-                        std::string params = trimmedCommand.substr(7);
-                        size_t spacePos = params.find(' ');
-                        if (spacePos != std::string::npos)
-                        {
-                            std::string paramName = params.substr(0, spacePos);
-                            int newValue = std::stoi(params.substr(spacePos + 1));
+                        std::string paramName = params.substr(0, spacePos);
+                        int newValue = std::stoi(params.substr(spacePos + 1));
 
-                            bool success = engine.runABTest(paramName, newValue, 10);
-                            std::cout << "A/B Test " << (success ? "PASSED" : "FAILED") << std::endl;
-                        }
-                    }
-                    else
-                    {
-                        std::cout << "Usage: abtest <parameter_name> <new_value>" << std::endl;
+                        bool success = engine.runABTest(paramName, newValue, 10);
+                        std::cout << "A/B Test " << (success ? "PASSED" : "FAILED") << std::endl;
                     }
                 }
-                catch (const std::exception &e)
+                else
                 {
-                    std::cerr << "Error running A/B test: " << e.what() << std::endl;
+                    std::cout << "Usage: abtest <parameter_name> <new_value>" << std::endl;
                 }
             }
-            else if (trimmedCommand == "testimprovements")
+            catch (const std::exception &e)
             {
-                try
-                {
-                    std::cout << "Testing search improvements..." << std::endl;
-
-                    // Test tactical position
-                    game.newGameFromFEN("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
-
-                    auto startTime = std::chrono::high_resolution_clock::now();
-                    Move bestMove = engine.getBestMove();
-                    auto endTime = std::chrono::high_resolution_clock::now();
-
-                    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-
-                    std::cout << "Best move: " << bestMove.toString() << std::endl;
-                    std::cout << "Nodes searched: " << engine.getNodesSearched() << std::endl;
-                    std::cout << "Time taken: " << duration.count() << "ms" << std::endl;
-                }
-                catch (const std::exception &e)
-                {
-                    std::cerr << "Error testing improvements: " << e.what() << std::endl;
-                }
+                std::cerr << "Error running A/B test: " << e.what() << std::endl;
             }
-            
-else if (trimmedCommand == "eval")
+        }
+        else if (trimmedCommand == "testimprovements")
+        {
+            try
+            {
+                std::cout << "Testing search improvements..." << std::endl;
+
+                // Test tactical position
+                game.newGameFromFEN("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
+
+                auto startTime = std::chrono::high_resolution_clock::now();
+                Move bestMove = engine.getBestMove();
+                auto endTime = std::chrono::high_resolution_clock::now();
+
+                auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+
+                std::cout << "Best move: " << bestMove.toString() << std::endl;
+                std::cout << "Nodes searched: " << engine.getNodesSearched() << std::endl;
+                std::cout << "Time taken: " << duration.count() << "ms" << std::endl;
+            }
+            catch (const std::exception &e)
+            {
+                std::cerr << "Error testing improvements: " << e.what() << std::endl;
+            }
+        }
+        else if (trimmedCommand == "eval")
         {
             try
             {
@@ -659,12 +663,6 @@ else if (trimmedCommand == "eval")
                 std::cerr << "Error testing UCI: " << e.what() << std::endl;
             }
         }
-
-            catch (const std::exception &e)
-            {
-                std::cout << "Invalid perft depth! Usage: perft <depth>" << std::endl;
-            }
-        }
         else
         {
             // STEP 5: Try to interpret the command as a move
@@ -750,3 +748,4 @@ void UI::displayHelp() const
     std::cout << "  eval           - Show detailed position evaluation" << std::endl;
     std::cout << "  evaltest       - Test evaluation on known positions" << std::endl;
     std::cout << "  uci            - Test UCI protocol commands" << std::endl;
+}

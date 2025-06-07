@@ -725,7 +725,7 @@ bool Board::isValidMovePattern(std::shared_ptr<Piece> piece, const Move& move) c
     }
 }
 
-    previousState.pieceHasMoved = piece->getHasMoved();
+  previousState.pieceHasMoved = piece->getHasMoved();
 
     // Handle castling BEFORE other validations
     if (piece->getType() == PieceType::KING) {
@@ -755,51 +755,50 @@ bool Board::isValidMovePattern(std::shared_ptr<Piece> piece, const Move& move) c
         }
     }
 
-     previousState.capturedPiece = getPieceAt(move.to);
+    previousState.capturedPiece = getPieceAt(move.to);
 
     // Determine if this is a capture or pawn move 
     bool isCapture = getPieceAt(move.to) != nullptr;
     bool isPawnMove = piece->getType() == PieceType::PAWN;
 
-   // REPLACE the en passant capture section in makeMove() with this:
-// Handle en passant capture with proper validation
-if (isPawnMove && move.to == enPassantTarget && enPassantTarget.isValid()) {
-    // Validate that there's actually a pawn to capture
-    int capturedPawnRow = (sideToMove == Color::WHITE) ? move.to.row - 1 : move.to.row + 1;
-    Position capturedPawnPos(capturedPawnRow, move.to.col);
-    
-    auto capturedPawn = getPieceAt(capturedPawnPos);
-    
-    // COMPREHENSIVE en passant validation
-    if (capturedPawn && 
-        capturedPawn->getType() == PieceType::PAWN && 
-        capturedPawn->getColor() != sideToMove) {
+    // Handle en passant capture with proper validation
+    if (isPawnMove && move.to == enPassantTarget && enPassantTarget.isValid()) {
+        // Validate that there's actually a pawn to capture
+        int capturedPawnRow = (sideToMove == Color::WHITE) ? move.to.row - 1 : move.to.row + 1;
+        Position capturedPawnPos(capturedPawnRow, move.to.col);
         
-        // Additional validation: The captured pawn should be on the correct rank
-        bool validRank = false;
-        if (sideToMove == Color::WHITE && capturedPawnRow == 4) {
-            validRank = true; // White capturing black pawn on 5th rank
-        } else if (sideToMove == Color::BLACK && capturedPawnRow == 3) {
-            validRank = true; // Black capturing white pawn on 4th rank
-        }
+        auto capturedPawn = getPieceAt(capturedPawnPos);
         
-        if (validRank) {
-            // Valid en passant capture
-            previousState.capturedPiece = capturedPawn;
-            setPieceAt(capturedPawnPos, nullptr);
-            isCapture = true;
-            previousState.wasEnPassant = true;
+        // COMPREHENSIVE en passant validation
+        if (capturedPawn && 
+            capturedPawn->getType() == PieceType::PAWN && 
+            capturedPawn->getColor() != sideToMove) {
+            
+            // Additional validation: The captured pawn should be on the correct rank
+            bool validRank = false;
+            if (sideToMove == Color::WHITE && capturedPawnRow == 4) {
+                validRank = true; // White capturing black pawn on 5th rank
+            } else if (sideToMove == Color::BLACK && capturedPawnRow == 3) {
+                validRank = true; // Black capturing white pawn on 4th rank
+            }
+            
+            if (validRank) {
+                // Valid en passant capture
+                previousState.capturedPiece = capturedPawn;
+                setPieceAt(capturedPawnPos, nullptr);
+                isCapture = true;
+                previousState.wasEnPassant = true;
+            } else {
+                // Invalid en passant - this shouldn't happen with correct move generation
+                return false;
+            }
         } else {
-            // Invalid en passant - this shouldn't happen with correct move generation
+            // No valid pawn to capture - invalid en passant
             return false;
         }
-    } else {
-        // No valid pawn to capture - invalid en passant
-        return false;
     }
-}
 
-   // Update en passant target square
+    // Update en passant target square
     if (isPawnMove && abs(move.to.row - move.from.row) == 2) {
         // Set the en passant target square
         int epRow = (sideToMove == Color::WHITE) ? move.from.row + 1 : move.from.row - 1;
@@ -818,22 +817,22 @@ if (isPawnMove && move.to == enPassantTarget && enPassantTarget.isValid()) {
     // Save the original piece type for undoing promotions
     previousState.originalType = piece->getType();
     
-// Get the original piece type before any modifications
-auto originalPiece = getPieceAt(move.from);
-PieceType originalPieceType = originalPiece->getType();
+    // Get the original piece type before any modifications
+    auto originalPiece = getPieceAt(move.from);
+    PieceType originalPieceType = originalPiece->getType();
 
-// Handle pawn promotion - FIXED memory safety
-if (isPawnMove && (move.to.row == 0 || move.to.row == 7)) {
-    // Default to queen if no promotion specified (should not happen in normal play)
-    PieceType promotionType = (move.promotion != PieceType::NONE) ? move.promotion : PieceType::QUEEN;
-    
-    // Validate promotion type (only allow legal promotions)
-    if (promotionType != PieceType::QUEEN && promotionType != PieceType::ROOK && 
-        promotionType != PieceType::BISHOP && promotionType != PieceType::KNIGHT) {
-        promotionType = PieceType::QUEEN; // Default to queen for invalid types
-    }
-    
-    previousState.wasPromotion = true;
+    // Handle pawn promotion - FIXED memory safety
+    if (isPawnMove && (move.to.row == 0 || move.to.row == 7)) {
+        // Default to queen if no promotion specified (should not happen in normal play)
+        PieceType promotionType = (move.promotion != PieceType::NONE) ? move.promotion : PieceType::QUEEN;
+        
+        // Validate promotion type (only allow legal promotions)
+        if (promotionType != PieceType::QUEEN && promotionType != PieceType::ROOK && 
+            promotionType != PieceType::BISHOP && promotionType != PieceType::KNIGHT) {
+            promotionType = PieceType::QUEEN; // Default to queen for invalid types
+        }
+        
+        previousState.wasPromotion = true;
     
     // Create new piece - no try/catch needed, shared_ptr handles this safely
     std::shared_ptr<Piece> newPiece;
