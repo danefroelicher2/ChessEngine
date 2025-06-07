@@ -1973,9 +1973,7 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
     // If we've reached the maximum depth, use quiescence search
     if (depth <= 0)
     {
-        return quiescence
-
-(board, alpha, beta, hashKey, ply);
+        return quiescenceSearch(board, alpha, beta, hashKey, ply);
     }
 
     // Check if we should extend the search depth
@@ -2160,8 +2158,6 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
             int eval;
 
             if (foundPV)
-            {
-              if (foundPV)
             {
                 // For non-PV moves, try LMR first if applicable
                 if (lmrReduction > 0)
