@@ -164,10 +164,10 @@ private:
     static const int PV_NODE_THRESHOLD = 2;        // Different rules for PV nodes
     static const int MAX_LMR_REDUCTION = 4;        // Maximum reduction allowed
     static const int MIN_LMR_REDUCTION = 1;        // Minimum reduction
-    static const double LMR_BASE_REDUCTION = 0.85; // Base reduction factor
-    static const double LMR_DEPTH_FACTOR = 0.6;    // How much depth affects reduction
-    static const double LMR_MOVE_FACTOR = 0.4;     // How much move index affects reduction
-    static const double LMR_POSITION_FACTOR = 0.3; // Position-dependent factor
+   static inline const double LMR_BASE_REDUCTION = 0.85;
+static inline const double LMR_DEPTH_FACTOR = 0.6;
+static inline const double LMR_MOVE_FACTOR = 0.4;
+static inline const double LMR_POSITION_FACTOR = 0.3;
 
     // NEW: Pruning Integration Control
     static const bool ENABLE_NULL_MOVE_PRUNING = true;

@@ -6,6 +6,7 @@
 #include "engine.h"
 #include "tactical_tests.h"
 #include "uci.h"
+#include "perft.h" 
 class UI
 {
 private:
