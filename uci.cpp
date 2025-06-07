@@ -202,8 +202,9 @@ void UCIProtocol::handleGo(const std::string& command) {
     auto endTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
     
-    // Send info about the search
-    sendInfo(depth, 0, engine.getNodesSearched(), duration.count(), engine.getPVString());
+sendInfo(depth, 0, engine.getNodesSearched(), static_cast<int>(duration.count()), engine.getPVString());
+
+
     
     // Send best move
     sendBestMove(bestMove);

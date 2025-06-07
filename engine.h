@@ -135,7 +135,9 @@ public:
 
     // Reset search statistics
     void resetStats() { nodesSearched = 0; }
-    // NEW: Public evaluation methods for testing
+    
+    // FIXED: Public evaluation methods for testing - these were causing the compilation errors
+    int evaluatePosition(const Board &board);
     int evaluatePieceMobility(const Board& board) const;
     int evaluateKingSafety(const Board& board) const;
     int evaluatePawnStructure(const Board& board) const;
@@ -145,6 +147,10 @@ public:
     int getPawnIslands(const Board& board, Color color) const;
     bool hasBishopPair(const Board& board, Color color) const;
     bool isEndgame(const Board& board) const;
+
+    // FIXED: Parameter tuning methods - moved to public
+    void runParameterTuning(const std::string& testSuite);
+    bool runABTest(const std::string& parameterName, int newValue, int testGames);
 
 private:
     // NULL MOVE PRUNING PARAMETERS
@@ -161,7 +167,7 @@ private:
     static const double LMR_BASE_REDUCTION = 0.85; // Base reduction factor
     static const double LMR_DEPTH_FACTOR = 0.6;    // How much depth affects reduction
     static const double LMR_MOVE_FACTOR = 0.4;     // How much move index affects reduction
-  static const double LMR_POSITION_FACTOR = 0.3; // Position-dependent factor
+    static const double LMR_POSITION_FACTOR = 0.3; // Position-dependent factor
 
     // NEW: Pruning Integration Control
     static const bool ENABLE_NULL_MOVE_PRUNING = true;
@@ -226,19 +232,7 @@ private:
                   std::vector<Move> &pv, uint64_t hashKey, int ply, Move lastMove);
     int quiescenceSearch(Board &board, int alpha, int beta, uint64_t hashKey, int ply);
 
-  // EVALUATION METHODS
-    int evaluatePosition(const Board &board);
-    bool isEndgame(const Board &board) const;
-
-    // NEW: Enhanced Evaluation Methods
-    int evaluatePieceMobility(const Board& board) const;
-    int evaluateKingSafety(const Board& board) const;
-    int evaluatePawnStructure(const Board& board) const;
-    int evaluatePieceCoordination(const Board& board) const;
-    int evaluateEndgameFactors(const Board& board) const;
-
     // NEW: Individual Evaluation Components
-    int countPieceMobility(const Board& board, Color color) const;
     int evaluateKingSafetyForColor(const Board& board, Color color) const;
     int evaluatePawnsForColor(const Board& board, Color color) const;
     int evaluatePieceActivity(const Board& board, Color color) const;
@@ -249,10 +243,8 @@ private:
     bool isPawnDoubled(const Board& board, Position pawnPos) const;
     bool isPawnBackward(const Board& board, Position pawnPos) const;
     bool isPawnPassed(const Board& board, Position pawnPos) const;
-    int getPawnIslands(const Board& board, Color color) const;
 
     // NEW: Piece Coordination Helpers
-    bool hasBishopPair(const Board& board, Color color) const;
     bool isKnightOutpost(const Board& board, Position knightPos) const;
     bool isRookOnOpenFile(const Board& board, Position rookPos) const;
     bool isRookOnSemiOpenFile(const Board& board, Position rookPos) const;
@@ -306,26 +298,25 @@ private:
     int calculateExtensions(const Move& move, const Board& board, int depth, int ply, 
                            bool isPVNode, bool inCheck, int moveNumber) const;
     int getCheckExtension(const Board& board, int ply) const;
-   int getSingularExtension(const Board& board, const Move& move, int depth,
+    int getSingularExtension(const Board& board, const Move& move, int depth,
                             int alpha, int beta, int ply) const;
 
     // NEW: Futility pruning methods
     bool canUseFutilityPruning(int depth, int alpha, int beta, int eval, bool inCheck) const;
     int getFutilityMargin(int depth, const Board& board) const;
     bool canUseReverseFutilityPruning(int depth, int eval, int beta) const;
-   bool canUseDeltaPruning(int eval, int alpha, const Move& move, const Board& board) const;
+    bool canUseDeltaPruning(int eval, int alpha, const Move& move, const Board& board) const;
 
     // NEW: Razoring methods
     bool canUseRazoring(int depth, int alpha, int eval, bool inCheck) const;
     int getRazoringMargin(int depth, const Board& board) const;
     bool hasNearPromotionPawns(const Board& board, Color color) const;
-  bool hasMaterialImbalance(const Board& board) const;
+    bool hasMaterialImbalance(const Board& board) const;
 
     // NEW: Pruning Integration Methods
     bool shouldAllowMultiplePruning(int depth, int ply, bool inCheck) const;
     int getPruningPriority(const std::string& pruningType, int depth, int ply) const;
     void trackPruningUsage(const std::string& pruningType, int depth, int ply) const;
-
 
     // BUTTERFLY HISTORY MANAGEMENT
     void updateButterflyHistory(const Move &move, int depth, Color color);
@@ -360,7 +351,7 @@ private:
     void clearEnhancedTables();
     void clearSEECache();
 
-    // NEW: Parameter Tuning Framework
+    // Parameter Tuning Framework - moved some methods to public section above
     struct TuningParameter {
         std::string name;
         int* valuePtr;
@@ -371,8 +362,6 @@ private:
     };
     
     void initializeTuningParameters();
-    void runParameterTuning(const std::string& testSuite);
-    bool runABTest(const std::string& parameterName, int newValue, int testGames);
     void printTuningResults() const;
     double evaluateParameterSet(const std::vector<std::string>& testPositions);
     

@@ -54,6 +54,9 @@ public:
     Position to;
     PieceType promotion;
     
+    // ADDED: Default constructor to fix compilation error
+    Move() : from(Position()), to(Position()), promotion(PieceType::NONE) {}
+    
     Move(Position f, Position t, PieceType p = PieceType::NONE)
         : from(f), to(t), promotion(p) {}
     
@@ -94,7 +97,7 @@ public:
     
     void setPosition(const Position& pos) { position = pos; }
     void setMoved() { hasMoved = true; }
-void setHasMoved(bool moved) { hasMoved = moved; }
+    void setHasMoved(bool moved) { hasMoved = moved; }
     
     virtual std::vector<Move> getLegalMoves(const class Board& board) const = 0;
     
@@ -104,7 +107,5 @@ void setHasMoved(bool moved) { hasMoved = moved; }
     // Return char representation for console display
     char toChar() const;
 };
-
-
 
 #endif // PIECE_H
