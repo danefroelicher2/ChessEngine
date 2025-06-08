@@ -78,14 +78,13 @@ const int Engine::kingEndGameTable[64] = {
 
 
 
-// Clear the killer moves
 void Engine::clearKillerMoves()
 {
     for (int ply = 0; ply < MAX_PLY; ply++)
     {
         for (int i = 0; i < 4; i++) // 4 killer slots instead of 2
         {
-            killerMoves[ply][i] = Move(Position(), Position());
+            killerMoves[ply][i] = Move(Position(0, 0), Position(0, 0));
         }
     }
 }
@@ -101,14 +100,13 @@ void Engine::clearCounterMoves()
             {
                 for (int to = 0; to < 64; to++)
                 {
-                    counterMoves[pieceType][color][from][to] = Move(Position(), Position());
+                    counterMoves[pieceType][color][from][to] = Move(Position(0, 0), Position(0, 0));
                 }
             }
         }
     }
 }
 
-// Clear Enhanced Move Ordering Tables
 void Engine::clearEnhancedTables()
 {
     // Clear butterfly history
@@ -121,7 +119,7 @@ void Engine::clearEnhancedTables()
     // Clear countermove history
     for (int piece = 0; piece < 6; piece++) {
         for (int to = 0; to < 64; to++) {
-            countermoveHistory[piece][to] = Move(Position(), Position());
+            countermoveHistory[piece][to] = Move(Position(0, 0), Position(0, 0));
         }
     }
     
@@ -796,8 +794,8 @@ Move Engine::getBestMove()
 Move Engine::iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashKey)
 {
     principalVariation.clear();
-    Move bestMove(Position(), Position());
-    Move previousBestMove(Position(), Position());
+    Move bestMove(Position(0, 0), Position(0, 0));
+    Move previousBestMove(Position(0, 0), Position(0, 0));
     int bestScore = 0;
     int previousScore = 0;
 
@@ -840,7 +838,7 @@ Move Engine::iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashK
         {
             alpha = -100000;
             beta = 100000;
-            score = pvSearch(board, depth, alpha, beta, maximizingPlayer, pv, hashKey, 0, Move(Position(), Position()));
+           score = pvSearch(board, depth, alpha, beta, maximizingPlayer, pv, hashKey, 0, Move(Position(0, 0), Position(0, 0)));
         }
         else
         {
@@ -851,7 +849,7 @@ Move Engine::iterativeDeepeningSearch(Board &board, int maxDepth, uint64_t hashK
             // Try with narrow window first
             while (true)
             {
-                score = pvSearch(board, depth, alpha, beta, maximizingPlayer, pv, hashKey, 0, Move(Position(), Position()));
+               score = pvSearch(board, depth, alpha, beta, maximizingPlayer, pv, hashKey, 0, Move(Position(0, 0), Position(0, 0)));
 
                 // If the score falls within our window, we're good
                 if (score > alpha && score < beta)
@@ -1273,12 +1271,12 @@ void Engine::storeCounterMove(const Move &lastMove, const Move &counterMove)
 Move Engine::getCounterMove(const Move &lastMove) const
 {
     if (!lastMove.from.isValid() || !lastMove.to.isValid())
-        return Move(Position(), Position());
+        return Move(Position(0, 0), Position(0, 0));
 
     // Get the piece that made the last move (opponent's piece)
     auto piece = game.getBoard().getPieceAt(lastMove.to);
     if (!piece)
-        return Move(Position(), Position());
+        return Move(Position(0, 0), Position(0, 0));
 
     // Use the same indexing as storage
     int pieceType = static_cast<int>(piece->getType());
@@ -1360,11 +1358,11 @@ void Engine::storeCountermoveHistory(const Move &lastMove, const Move &counterMo
 Move Engine::getCountermoveHistory(const Move &lastMove) const
 {
     if (!lastMove.to.isValid())
-        return Move(Position(), Position());
+        return Move(Position(0, 0), Position(0, 0));
     
     auto lastPiece = game.getBoard().getPieceAt(lastMove.to);
     if (!lastPiece)
-        return Move(Position(), Position());
+        return Move(Position(0, 0), Position(0, 0));
     
     int pieceType = static_cast<int>(lastPiece->getType());
     int toSquare = lastMove.to.row * 8 + lastMove.to.col;
@@ -1606,8 +1604,8 @@ bool Engine::canUseNullMove(const Board& board, int depth, int beta, int ply) co
         return false;
     }
     
-    // Static evaluation should be >= beta (position looks good)
-    int staticEval = evaluatePosition(board);
+   // Static evaluation should be >= beta (position looks good)
+    int staticEval = const_cast<Engine*>(this)->evaluatePosition(board);
     if (staticEval < beta) {
         return false;
     }
@@ -1864,13 +1862,14 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
 
     // Check transposition table for this position
     int originalAlpha = alpha;
-    Move ttMove(Position(), Position());
+    Move ttMove(Position(0, 0), Position(0, 0));
     int score;
 
     pv.clear();
 
-   // 1. PRIORITY: Probe the transposition table (ALWAYS FIRST)
-    if (ply > 0 && transpositionTable.probe(hashKey, depth, alpha, beta, score, ttMove))
+ // 1. PRIORITY: Probe the transposition table (ALWAYS FIRST)
+    Move tempTTMove(Position(0, 0), Position(0, 0));
+    if (ply > 0 && transpositionTable.probe(hashKey, depth, alpha, beta, score, tempTTMove))
     {
         return score; // Return cached result if available (but don't use TT at root)
     }
@@ -1902,7 +1901,7 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
         // Search with reduced depth and negated window
         std::vector<Move> nullPV;
         int nullScore = -pvSearch(board, depth - 1 - reduction, -beta, -beta + 1, 
-                                 !maximizingPlayer, nullPV, nullHashKey, ply + 1, Move(Position(), Position()));
+                                 !maximizingPlayer, nullPV, nullHashKey, ply + 1, Move(Position(0, 0), Position(0, 0)));
         
         // Unmake null move
         board.switchSideToMove();
@@ -2016,7 +2015,8 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
     std::vector<std::pair<int, Move>> scoredMoves;
     for (const auto &move : legalMoves)
     {
-        int moveScore = getEnhancedMoveScore(move, board, ttMove, ply, board.getSideToMove(), lastMove);
+       Move validTTMove = (ttMove.from.isValid() && ttMove.to.isValid()) ? ttMove : Move(Position(0, 0), Position(0, 0));
+        int moveScore = getEnhancedMoveScore(move, board, validTTMove, ply, board.getSideToMove(), lastMove);
 
         // Early pruning of very bad captures
         if (depth >= 3)
@@ -2049,7 +2049,7 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
     }
 
     NodeType nodeType = NodeType::ALPHA;
-    Move localBestMove = legalMoves.empty() ? Move(Position(), Position()) : legalMoves[0];
+    Move localBestMove = legalMoves.empty() ? Move(Position(0, 0), Position(0, 0)) : legalMoves[0];
     bool foundPV = false;
 
     // This will be used to store the principal variation
@@ -2063,30 +2063,30 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
         {
             const Move &move = scoredMoves[i].second;
 
-            // NEW: Futility Pruning Section
-            int eval = evaluatePosition(board);
+       // NEW: Futility Pruning Section
+            int currentEval = evaluatePosition(board);
             bool isCapture = board.getPieceAt(move.to) != nullptr;
             
           // 4. PRIORITY: FUTILITY PRUNING (Local move skipping)
             if (ENABLE_FUTILITY_PRUNING && shouldAllowMultiplePruning(depth, ply, board.isInCheck())) {
                 // 4a. Static Futility Pruning (for quiet moves)
                 if (!foundPV && depth <= 3 && !isCapture && i >= 3) {
-                    if (canUseFutilityPruning(depth, alpha, beta, eval, board.isInCheck())) {
+                    if (canUseFutilityPruning(depth, alpha, beta, currentEval, board.isInCheck())) {
                         trackPruningUsage("futility", depth, ply);
                         continue;
                     }
                 }
                 
-                // 4b. Reverse Futility Pruning (stand-pat)
+               // 4b. Reverse Futility Pruning (stand-pat)
                 if (!foundPV && depth <= 2 && !board.isInCheck()) {
-                    if (canUseReverseFutilityPruning(depth, eval, beta)) {
+                    if (canUseReverseFutilityPruning(depth, currentEval, beta)) {
                         trackPruningUsage("futility", depth, ply);
-                        return eval;
+                        return currentEval;
                     }
                 }
                 
                 // 4c. Delta Pruning for captures
-                if (isCapture && canUseDeltaPruning(eval, alpha, move, board)) {
+                if (isCapture && canUseDeltaPruning(currentEval, alpha, move, board)) {
                     trackPruningUsage("futility", depth, ply);
                     continue;
                 }
@@ -2226,7 +2226,7 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
                     updateHistoryScore(move, depth, Color::WHITE);
                     updateButterflyHistory(move, depth, Color::WHITE);
 
-                    if (lastMove.from.isValid() && lastMove.to.isValid())
+    if (lastMove.from.isValid() && lastMove.to.isValid())
                     {
                         storeCounterMove(lastMove, move);
                         storeCountermoveHistory(lastMove, move);
@@ -2257,25 +2257,25 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
             const Move &move = scoredMoves[i].second;
 
             // NEW: Futility Pruning Section
-            int eval = evaluatePosition(board);
+            int currentMoveEval = evaluatePosition(board);
             bool isCapture = board.getPieceAt(move.to) != nullptr;
             
             // 1. Static Futility Pruning (for quiet moves)
             if (!foundPV && depth <= 3 && !isCapture && i >= 3) {
-                if (canUseFutilityPruning(depth, alpha, beta, eval, board.isInCheck())) {
+                if (canUseFutilityPruning(depth, alpha, beta, currentMoveEval, board.isInCheck())) {
                     continue;
                 }
             }
             
             // 2. Reverse Futility Pruning (stand-pat)
             if (!foundPV && depth <= 2 && !board.isInCheck()) {
-                if (canUseReverseFutilityPruning(depth, eval, beta)) {
-                    return eval;
+                if (canUseReverseFutilityPruning(depth, currentMoveEval, beta)) {
+                    return currentMoveEval;
                 }
             }
             
             // 3. Delta Pruning for captures
-            if (isCapture && canUseDeltaPruning(eval, alpha, move, board)) {
+            if (isCapture && canUseDeltaPruning(currentMoveEval, alpha, move, board)) {
                 continue;
             }
 
@@ -2399,7 +2399,7 @@ int Engine::pvSearch(Board &board, int depth, int alpha, int beta, bool maximizi
                     updateHistoryScore(move, depth, Color::BLACK);
                     updateButterflyHistory(move, depth, Color::BLACK);
 
-                    if (lastMove.from.isValid() && lastMove.to.isValid())
+        if (lastMove.from.isValid() && lastMove.to.isValid())
                     {
                         storeCounterMove(lastMove, move);
                         storeCountermoveHistory(lastMove, move);
@@ -2431,13 +2431,14 @@ int Engine::alphaBeta(Board &board, int depth, int alpha, int beta, bool maximiz
 
     // Check transposition table for this position
     int originalAlpha = alpha;
-    Move ttMove(Position(), Position());
+   Move ttMove(Position(0, 0), Position(0, 0));
     int score;
 
     pv.clear();
 
-    // Probe the transposition table
-    if (ply > 0 && transpositionTable.probe(hashKey, depth, alpha, beta, score, ttMove))
+// Probe the transposition table
+    Move tempTTMove(Position(0, 0), Position(0, 0));
+    if (ply > 0 && transpositionTable.probe(hashKey, depth, alpha, beta, score, tempTTMove))
     {
         return score; // Return cached result if available (but don't use TT at root)
     }
@@ -2476,7 +2477,8 @@ int Engine::alphaBeta(Board &board, int depth, int alpha, int beta, bool maximiz
     std::vector<std::pair<int, Move>> scoredMoves;
     for (const auto &move : legalMoves)
     {
-        int moveScore = getEnhancedMoveScore(move, board, ttMove, ply, board.getSideToMove(), lastMove);
+       Move validTTMove = (ttMove.from.isValid() && ttMove.to.isValid()) ? ttMove : Move(Position(0, 0), Position(0, 0));
+        int moveScore = getEnhancedMoveScore(move, board, validTTMove, ply, board.getSideToMove(), lastMove);
 
         // Early pruning of very bad captures
         if (depth >= 3)
@@ -2504,7 +2506,7 @@ int Engine::alphaBeta(Board &board, int depth, int alpha, int beta, bool maximiz
               });
 
     NodeType nodeType = NodeType::ALPHA;
-    Move localBestMove = legalMoves.empty() ? Move(Position(), Position()) : legalMoves[0];
+    Move localBestMove = legalMoves.empty() ? Move(Position(0, 0), Position(0, 0)) : legalMoves[0];
 
     // This will be used to store the principal variation
     std::vector<Move> childPV;
@@ -2795,8 +2797,8 @@ bool Engine::shouldStopSearch() const
 
     bool shouldStop = elapsed.count() >= safeTimeLimit;
     
-    if (shouldStop) {
-        searchShouldStop.store(true);
+  if (shouldStop) {
+        const_cast<std::atomic<bool>&>(searchShouldStop).store(true);
     }
     
     return shouldStop;
