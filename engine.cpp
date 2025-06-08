@@ -1125,7 +1125,11 @@ int Engine::see(const Board &board, const Position &square, Color side, int capt
     }
 
     // Sort attackers by piece value (least valuable first for optimal play)
-    std::sort(attackers.begin(), attackers.end());
+    std::sort(attackers.begin(), attackers.end(),
+          [](const std::pair<int, Position> &a, const std::pair<int, Position> &b)
+          {
+              return a.first < b.first;
+          });
 
     // Take the least valuable attacker
     int attackerValue = attackers[0].first;
