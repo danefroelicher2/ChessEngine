@@ -76,10 +76,7 @@ const int Engine::kingEndGameTable[64] = {
     -30, -30, 0, 0, 0, 0, -30, -30,
     -50, -30, -30, -30, -30, -30, -30, -50};
 
-// NULL MOVE PRUNING PARAMETERS
-const int Engine::NULL_MOVE_MIN_DEPTH = 3;
-const int Engine::NULL_MOVE_BASE_REDUCTION = 3;
-const int Engine::NULL_MOVE_VERIFICATION_DEPTH = 2;
+
 
 // Clear the killer moves
 void Engine::clearKillerMoves()
