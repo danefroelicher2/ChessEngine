@@ -1,7 +1,7 @@
 #ifndef PIECE_H
 #define PIECE_H
 
-#include "main.h"
+#include "common.h"
 
 enum class PieceType {
     PAWN,

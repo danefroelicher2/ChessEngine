@@ -1,7 +1,7 @@
 #ifndef TRANSPOSITION_H
 #define TRANSPOSITION_H
 
-#include "main.h"
+#include "common.h"
 #include "piece.h"
 
 // Node types for transposition table entries

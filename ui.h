@@ -1,7 +1,7 @@
 #ifndef UI_H
 #define UI_H
 
-#include "main.h"
+#include "common.h"
 #include "game.h"
 #include "engine.h"
 #include "tactical_tests.h"

@@ -1,8 +1,9 @@
 #ifndef GAME_H
 #define GAME_H
 
-#include "main.h"
 #include "board.h"
+#include <vector>  // For std::vector
+#include <string>  // For std::string
 
 enum class GameResult {
     IN_PROGRESS,
@@ -28,7 +29,7 @@ private:
     std::vector<std::string> fenHistory;
     GameResult result;
     GameEndReason endReason;
-    
+
 public:
     Game();
     

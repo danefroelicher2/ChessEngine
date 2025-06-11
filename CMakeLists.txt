@@ -24,6 +24,7 @@ set(HEADERS
     main.h
     piece.h
     piece_types.h
+    common.h
     board.h
     game.h
     engine.h

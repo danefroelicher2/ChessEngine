@@ -1,7 +1,7 @@
 #ifndef TACTICAL_TESTS_H
 #define TACTICAL_TESTS_H
 
-#include "main.h"
+#include "common.h"
 #include "game.h"
 #include "engine.h"
 

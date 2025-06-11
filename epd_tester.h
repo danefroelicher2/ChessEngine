@@ -1,7 +1,7 @@
 #ifndef EPD_TESTER_H
 #define EPD_TESTER_H
 
-#include "main.h"
+#include "common.h"
 #include "engine.h"
 #include "game.h"
 #include <fstream>

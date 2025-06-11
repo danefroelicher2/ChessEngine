@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chess Engine Tester</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background: #2c3e50;
+        color: white;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        gap: 20px;
+      }
+
+      .board-container {
+        flex: 1;
+      }
+
+      .controls {
+        width: 300px;
+        background: #34495e;
+        padding: 20px;
+        border-radius: 8px;
+      }
+
+      .chess-board {
+        width: 500px;
+        height: 500px;
+        border: 2px solid #1abc9c;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        grid-template-rows: repeat(8, 1fr);
+      }
+
+      .square {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 32px;
+        cursor: pointer;
+        position: relative;
+        user-select: none;
+      }
+
+      .light {
+        background-color: #f0d9b5;
+        color: #000;
+      }
+
+      .dark {
+        background-color: #b58863;
+        color: #000;
+      }
+
+      .highlighted {
+        background-color: #ffff00 !important;
+      }
+
+      .possible-move {
+        background-color: #90ee90 !important;
+      }
+
+      .last-move {
+        background-color: #87ceeb !important;
+      }
+
+      button {
+        width: 100%;
+        padding: 10px;
+        margin: 5px 0;
+        background: #1abc9c;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+
+      button:hover {
+        background: #16a085;
+      }
+
+      button:disabled {
+        background: #7f8c8d;
+        cursor: not-allowed;
+      }
+
+      .status {
+        background: #2c3e50;
+        padding: 15px;
+        margin: 10px 0;
+        border-radius: 4px;
+        border: 1px solid #34495e;
+      }
+
+      .move-history {
+        height: 200px;
+        overflow-y: auto;
+        background: #2c3e50;
+        border: 1px solid #34495e;
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 4px;
+      }
+
+      .engine-output {
+        height: 150px;
+        overflow-y: auto;
+        background: #2c3e50;
+        border: 1px solid #34495e;
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 4px;
+        font-family: "Courier New", monospace;
+        font-size: 12px;
+      }
+
+      input,
+      select {
+        width: 100%;
+        padding: 8px;
+        margin: 5px 0;
+        border: 1px solid #34495e;
+        border-radius: 4px;
+        background: #2c3e50;
+        color: white;
+      }
+
+      label {
+        display: block;
+        margin-top: 10px;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 style="text-align: center; color: #1abc9c">Chess Engine Tester</h1>
+
+    <div class="container">
+      <div class="board-container">
+        <div class="chess-board" id="chessBoard"></div>
+
+        <div class="status">
+          <div><strong>Turn:</strong> <span id="currentTurn">White</span></div>
+          <div>
+            <strong>Status:</strong> <span id="gameStatus">Ready to play</span>
+          </div>
+          <div><strong>Last Move:</strong> <span id="lastMove">None</span></div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <h3>Game Controls</h3>
+        <button onclick="newGame()">New Game</button>
+        <button onclick="undoMove()" id="undoBtn">Undo Move</button>
+        <button onclick="flipBoard()">Flip Board</button>
+
+        <h3>Engine Controls</h3>
+        <button onclick="getEngineMove()" id="engineMoveBtn">
+          Get Engine Move
+        </button>
+        <button onclick="toggleAutoPlay()" id="autoPlayBtn">
+          Start Auto-Play
+        </button>
+
+        <label>Engine Depth:</label>
+        <select id="engineDepth">
+          <option value="1">1 (Instant)</option>
+          <option value="2">2 (Very Fast)</option>
+          <option value="3" selected>3 (Fast)</option>
+          <option value="4">4 (Medium)</option>
+          <option value="5">5 (Slow)</option>
+        </select>
+
+        <label>Time Limit (ms):</label>
+        <input
+          type="number"
+          id="timeLimit"
+          value="1000"
+          min="100"
+          max="30000"
+        />
+
+        <h3>Engine Output</h3>
+        <div class="engine-output" id="engineOutput">
+          Waiting for engine connection...
+        </div>
+
+        <h3>Move History</h3>
+        <div class="move-history" id="moveHistory">Game started</div>
+
+        <h3>Position</h3>
+        <button onclick="copyFEN()">Copy FEN</button>
+        <button onclick="pasteFEN()">Paste FEN</button>
+        <input type="text" id="fenInput" placeholder="Paste FEN here" />
+
+        <h3>Test Positions</h3>
+        <button onclick="loadTestPosition('startpos')">
+          Starting Position
+        </button>
+        <button onclick="loadTestPosition('middlegame')">Middlegame</button>
+        <button onclick="loadTestPosition('endgame')">Endgame</button>
+        <button onclick="loadTestPosition('tactics')">Tactical Position</button>
+      </div>
+    </div>
+
+    <script>
+      // Chess piece symbols
+      const pieces = {
+        K: "♔",
+        Q: "♕",
+        R: "♖",
+        B: "♗",
+        N: "♘",
+        P: "♙",
+        k: "♚",
+        q: "♛",
+        r: "♜",
+        b: "♝",
+        n: "♞",
+        p: "♟",
+      };
+
+      // Game state
+      let board = [];
+      let currentTurn = "white";
+      let selectedSquare = null;
+      let moveHistory = [];
+      let engineConnected = false;
+      let autoPlay = false;
+      let gameEnded = false;
+
+      // Initialize the board
+      function initBoard() {
+        // Standard starting position
+        const startFEN =
+          "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        loadFEN(startFEN);
+        createBoardHTML();
+        updateDisplay();
+      }
+
+      function createBoardHTML() {
+        const boardEl = document.getElementById("chessBoard");
+        boardEl.innerHTML = "";
+
+        for (let row = 0; row < 8; row++) {
+          for (let col = 0; col < 8; col++) {
+            const square = document.createElement("div");
+            square.className =
+              "square " + ((row + col) % 2 === 0 ? "light" : "dark");
+            square.id = `square-${row}-${col}`;
+            square.onclick = () => squareClicked(row, col);
+            boardEl.appendChild(square);
+          }
+        }
+      }
+
+      function updateDisplay() {
+        // Update board pieces
+        for (let row = 0; row < 8; row++) {
+          for (let col = 0; col < 8; col++) {
+            const square = document.getElementById(`square-${row}-${col}`);
+            const piece = board[row][col];
+            square.textContent = piece ? pieces[piece] : "";
+          }
+        }
+
+        // Update status
+        document.getElementById("currentTurn").textContent =
+          currentTurn.charAt(0).toUpperCase() + currentTurn.slice(1);
+      }
+
+      function squareClicked(row, col) {
+        if (gameEnded) return;
+
+        const square = document.getElementById(`square-${row}-${col}`);
+
+        if (selectedSquare) {
+          // Try to make a move
+          const [fromRow, fromCol] = selectedSquare;
+          if (row === fromRow && col === fromCol) {
+            // Deselect
+            clearHighlights();
+            selectedSquare = null;
+            return;
+          }
+
+          // Attempt move
+          if (makeMove(fromRow, fromCol, row, col)) {
+            clearHighlights();
+            selectedSquare = null;
+            updateDisplay();
+            addToHistory(
+              `${String.fromCharCode(97 + fromCol)}${
+                8 - fromRow
+              }-${String.fromCharCode(97 + col)}${8 - row}`
+            );
+
+            // Check for auto-play
+            if (autoPlay && !gameEnded) {
+              setTimeout(getEngineMove, 500);
+            }
+          } else {
+            // Invalid move, try selecting new piece
+            clearHighlights();
+            if (board[row][col] && isPlayerPiece(board[row][col])) {
+              selectedSquare = [row, col];
+              square.classList.add("highlighted");
+            } else {
+              selectedSquare = null;
+            }
+          }
+        } else {
+          // Select a piece
+          if (board[row][col] && isPlayerPiece(board[row][col])) {
+            selectedSquare = [row, col];
+            square.classList.add("highlighted");
+          }
+        }
+      }
+
+      function isPlayerPiece(piece) {
+        if (currentTurn === "white") {
+          return piece === piece.toUpperCase();
+        } else {
+          return piece === piece.toLowerCase();
+        }
+      }
+
+      function makeMove(fromRow, fromCol, toRow, toCol) {
+        // Basic move validation (you can make this more sophisticated)
+        const piece = board[fromRow][fromCol];
+        if (!piece || !isPlayerPiece(piece)) return false;
+
+        // Make the move
+        board[toRow][toCol] = piece;
+        board[fromRow][fromCol] = null;
+
+        // Switch turns
+        currentTurn = currentTurn === "white" ? "black" : "white";
+
+        return true;
+      }
+
+      function clearHighlights() {
+        document.querySelectorAll(".square").forEach((sq) => {
+          sq.classList.remove("highlighted", "possible-move", "last-move");
+        });
+      }
+
+      function newGame() {
+        gameEnded = false;
+        currentTurn = "white";
+        moveHistory = [];
+        autoPlay = false;
+        document.getElementById("autoPlayBtn").textContent = "Start Auto-Play";
+        document.getElementById("moveHistory").innerHTML = "Game started";
+        document.getElementById("gameStatus").textContent = "Ready to play";
+        initBoard();
+      }
+
+      function undoMove() {
+        // Implement undo logic here
+        addToEngineOutput("Undo move not implemented yet");
+      }
+
+      function flipBoard() {
+        // Implement board flipping here
+        addToEngineOutput("Board flip not implemented yet");
+      }
+
+      function getEngineMove() {
+        if (gameEnded) return;
+
+        const depth = document.getElementById("engineDepth").value;
+        const timeLimit = document.getElementById("timeLimit").value;
+
+        addToEngineOutput(
+          `Requesting engine move (depth: ${depth}, time: ${timeLimit}ms)...`
+        );
+
+        // Try to communicate with C++ engine via HTTP
+        communicateWithEngine();
+      }
+
+      async function communicateWithEngine() {
+        try {
+          // Get current position as FEN
+          const fen = getCurrentFEN();
+          const depth = document.getElementById("engineDepth").value;
+
+          // Try HTTP communication first
+          const response = await fetch(
+            `http://localhost:8080/move?fen=${encodeURIComponent(
+              fen
+            )}&depth=${depth}`,
+            {
+              method: "GET",
+              mode: "cors",
+            }
+          );
+
+          if (response.ok) {
+            const data = await response.json();
+            const move = data.move;
+            const eval = data.eval;
+
+            addToEngineOutput(`Engine move: ${move} (eval: ${eval})`);
+
+            // Parse and make the move
+            if (parseAndMakeMove(move)) {
+              updateDisplay();
+              addToHistory(`${move} (Engine)`);
+
+              if (autoPlay && !gameEnded) {
+                setTimeout(getEngineMove, 1000);
+              }
+            }
+          } else {
+            throw new Error("HTTP request failed");
+          }
+        } catch (error) {
+          addToEngineOutput(
+            "HTTP communication failed, falling back to simulation"
+          );
+          console.log("Engine communication error:", error);
+          simulateEngineMove();
+        }
+      }
+
+      function getCurrentFEN() {
+        // Convert current board to FEN notation
+        let fen = "";
+
+        for (let row = 0; row < 8; row++) {
+          let emptyCount = 0;
+          for (let col = 0; col < 8; col++) {
+            if (board[row][col]) {
+              if (emptyCount > 0) {
+                fen += emptyCount;
+                emptyCount = 0;
+              }
+              fen += board[row][col];
+            } else {
+              emptyCount++;
+            }
+          }
+          if (emptyCount > 0) {
+            fen += emptyCount;
+          }
+          if (row < 7) fen += "/";
+        }
+
+        // Add side to move and other FEN components
+        const turn = currentTurn === "white" ? "w" : "b";
+        fen += ` ${turn} KQkq - 0 1`;
+
+        return fen;
+      }
+
+      function parseAndMakeMove(moveStr) {
+        // Parse move string like "e2e4" and make the move
+        if (moveStr.length < 4) return false;
+
+        const fromFile = moveStr.charCodeAt(0) - 97; // a=0, b=1, etc.
+        const fromRank = 8 - parseInt(moveStr[1]); // 8=0, 7=1, etc.
+        const toFile = moveStr.charCodeAt(2) - 97;
+        const toRank = 8 - parseInt(moveStr[3]);
+
+        return makeMove(fromRank, fromFile, toRank, toFile);
+      }
+
+      function simulateEngineMove() {
+        // Simulate engine thinking time
+        setTimeout(() => {
+          // Make a random legal move for demonstration
+          const moves = findLegalMoves();
+          if (moves.length > 0) {
+            const move = moves[Math.floor(Math.random() * moves.length)];
+            const [fromRow, fromCol, toRow, toCol] = move;
+
+            if (makeMove(fromRow, fromCol, toRow, toCol)) {
+              updateDisplay();
+              addToHistory(
+                `${String.fromCharCode(97 + fromCol)}${
+                  8 - fromRow
+                }-${String.fromCharCode(97 + toCol)}${8 - toRow} (Engine)`
+              );
+              addToEngineOutput(
+                `Engine played: ${String.fromCharCode(97 + fromCol)}${
+                  8 - fromRow
+                }-${String.fromCharCode(97 + toCol)}${8 - toRow}`
+              );
+
+              if (autoPlay && !gameEnded) {
+                setTimeout(getEngineMove, 1000);
+              }
+            }
+          }
+        }, 500);
+      }
+
+      function findLegalMoves() {
+        // Simple move generation for demo
+        const moves = [];
+        for (let fromRow = 0; fromRow < 8; fromRow++) {
+          for (let fromCol = 0; fromCol < 8; fromCol++) {
+            const piece = board[fromRow][fromCol];
+            if (piece && isPlayerPiece(piece)) {
+              for (let toRow = 0; toRow < 8; toRow++) {
+                for (let toCol = 0; toCol < 8; toCol++) {
+                  if (fromRow !== toRow || fromCol !== toCol) {
+                    moves.push([fromRow, fromCol, toRow, toCol]);
+                  }
+                }
+              }
+            }
+          }
+        }
+        return moves;
+      }
+
+      function toggleAutoPlay() {
+        autoPlay = !autoPlay;
+        const btn = document.getElementById("autoPlayBtn");
+        btn.textContent = autoPlay ? "Stop Auto-Play" : "Start Auto-Play";
+
+        if (autoPlay && currentTurn === "black") {
+          setTimeout(getEngineMove, 500);
+        }
+      }
+
+      function addToHistory(move) {
+        moveHistory.push(move);
+        const historyEl = document.getElementById("moveHistory");
+        historyEl.innerHTML += "<br>" + moveHistory.length + ". " + move;
+        historyEl.scrollTop = historyEl.scrollHeight;
+      }
+
+      function addToEngineOutput(text) {
+        const outputEl = document.getElementById("engineOutput");
+        const timestamp = new Date().toLocaleTimeString();
+        outputEl.innerHTML += `<br>[${timestamp}] ${text}`;
+        outputEl.scrollTop = outputEl.scrollHeight;
+      }
+
+      function loadFEN(fen) {
+        // Simple FEN loader
+        board = Array(8)
+          .fill()
+          .map(() => Array(8).fill(null));
+        const parts = fen.split(" ");
+        const position = parts[0];
+        const rows = position.split("/");
+
+        for (let row = 0; row < 8; row++) {
+          let col = 0;
+          for (let char of rows[row]) {
+            if (char >= "1" && char <= "8") {
+              col += parseInt(char);
+            } else {
+              board[row][col] = char;
+              col++;
+            }
+          }
+        }
+      }
+
+      function copyFEN() {
+        // Generate current FEN and copy to clipboard
+        addToEngineOutput("FEN copy not implemented yet");
+      }
+
+      function pasteFEN() {
+        const fen = document.getElementById("fenInput").value;
+        if (fen) {
+          loadFEN(fen);
+          updateDisplay();
+          addToEngineOutput("Loaded position from FEN");
+        }
+      }
+
+      function loadTestPosition(type) {
+        const positions = {
+          startpos: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+          middlegame:
+            "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 0 1",
+          endgame: "8/8/8/8/8/8/6k1/4K2R w K - 0 1",
+          tactics:
+            "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 1",
+        };
+
+        loadFEN(positions[type]);
+        updateDisplay();
+        addToEngineOutput(`Loaded ${type} position`);
+      }
+
+      // Initialize the game
+      initBoard();
+      addToEngineOutput(
+        "Chess GUI ready. Connect your engine to start testing."
+      );
+    </script>
+  </body>
+</html>

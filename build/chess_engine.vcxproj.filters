@@ -48,6 +48,9 @@
     <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\piece_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\common.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\board.h">
       <Filter>Header Files</Filter>
     </ClInclude>

@@ -1,7 +1,7 @@
 #ifndef UCI_H
 #define UCI_H
 
-#include "main.h"
+#include "common.h"
 #include "game.h"
 #include "engine.h"
 #include <string>

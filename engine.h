@@ -1,7 +1,7 @@
 #ifndef ENGINE_H
 #define ENGINE_H
 
-#include "main.h"
+#include "common.h"
 #include "game.h"
 #include "transposition.h"
 #include "zobrist.h"

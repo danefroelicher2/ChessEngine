@@ -1,10 +1,12 @@
 #ifndef BOARD_H
 #define BOARD_H
 
-#include "main.h"
+// Remove this line: #include "main.h"
 #include "piece.h"
 #include "piece_types.h"
 #include "board_state.h"
+#include <vector>      // For std::vector
+#include <memory>      // For std::shared_ptr
 
 class Board {
 private:

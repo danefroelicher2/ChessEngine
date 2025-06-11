@@ -1,7 +1,7 @@
 #ifndef ZOBRIST_H
 #define ZOBRIST_H
 
-#include "main.h"
+#include "common.h"
 #include "piece.h"
 
 class Zobrist {

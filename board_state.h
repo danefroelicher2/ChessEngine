@@ -1,7 +1,7 @@
 #ifndef BOARD_STATE_H
 #define BOARD_STATE_H
 
-#include "main.h"
+#include "common.h"
 #include "piece.h"
 
 // Structure to store board state for move reversal

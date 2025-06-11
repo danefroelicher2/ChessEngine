@@ -1,5 +1,5 @@
-#ifndef MAIN_H
-#define MAIN_H
+#ifndef COMMON_H
+#define COMMON_H
 
 #include <iostream>
 #include <vector>
@@ -18,4 +18,4 @@ class Game;
 class Engine;
 class TranspositionTable;
 
-#endif // MAIN_H
+#endif // COMMON_H
