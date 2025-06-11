@@ -29,8 +29,7 @@ private:
     // ENHANCED: KILLER MOVE TABLES - 4 slots instead of 2
     Move killerMoves[MAX_PLY][4];
 
-    // COUNTER MOVE HEURISTIC TABLE
-    Move counterMoves[6][2][64][64]; // [piece_type][color][from_square][to_square]
+   Move* counterMovesPtr; // Dynamic allocation to avoid stack overflow
 
     // HISTORY HEURISTIC TABLE
     int historyTable[2][64][64]; // [color][from_square][to_square]
@@ -74,30 +73,8 @@ private:
     int unstableExtensionPercent; // Additional percentage of time for unstable positions
 
 public:
-    Engine(Game &g, int depth = 3, int ttSizeMB = 64, bool useTimeManagement = false)
-        : game(g), maxDepth(depth), transpositionTable(ttSizeMB), nodesSearched(0),
-          timeAllocated(0), timeBuffer(100), timeManaged(useTimeManagement),
-          positionIsUnstable(false), unstableExtensionPercent(50)
-    {
-        // Initialize PV table
-        pvTable.resize(MAX_PLY);
-        for (int i = 0; i < MAX_PLY; i++)
-        {
-            pvTable[i].clear();
-        }
-
-     // Initialize tables
-        clearKillerMoves();
-        clearHistoryTable();
-        clearCounterMoves();
-        clearEnhancedTables();
-        
-        // NEW: Initialize extension tracking
-        totalExtensionsInPath = 0;
-        for (int i = 0; i < MAX_PLY; i++) {
-            extensionsUsed[i] = 0;
-        }
-    }
+    Engine(Game &g, int depth = 3, int ttSizeMB = 64, bool useTimeManagement = false);
+    ~Engine();
 
     void setTimeAllocation(int timeInMs)
     {

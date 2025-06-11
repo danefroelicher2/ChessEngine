@@ -76,10 +76,66 @@ const int Engine::kingEndGameTable[64] = {
     -30, -30, 0, 0, 0, 0, -30, -30,
     -50, -30, -30, -30, -30, -30, -30, -50};
 
+// Engine Constructor - ADD THIS ENTIRE BLOCK
+Engine::Engine(Game &g, int depth, int ttSizeMB, bool useTimeManagement)
+    : game(g), 
+      maxDepth(depth),
+      transpositionTable(),
+      zobristHasher(),
+      nodesSearched(0),
+      totalExtensionsInPath(0) {
+    
+    std::cout << "Engine: Starting initialization..." << std::endl;
+    
+    // ALLOCATE HUGE ARRAY DYNAMICALLY TO AVOID STACK OVERFLOW
+    counterMovesPtr = new Move[6 * 2 * 64 * 64]();
+    std::cout << "Engine: Allocated counterMoves array" << std::endl;
+    
+    // Initialize all arrays
+    for (int i = 0; i < MAX_PLY; i++) {
+        for (int j = 0; j < 4; j++) {
+            killerMoves[i][j] = Move(Position(0,0), Position(0,0));
+        }
+        nullMoveAllowed[i] = true;
+        extensionsUsed[i] = 0;
+        pruningUsedAtPly[i] = 0;
+    }
+    
+    // Initialize history table
+    for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < 64; j++) {
+            for (int k = 0; k < 64; k++) {
+                historyTable[i][j][k] = 0;
+            }
+        }
+    }
+    
+    // Initialize other arrays
+    for (int i = 0; i < 64; i++) {
+        for (int j = 0; j < 64; j++) {
+            butterflyHistory[i][j] = 0;
+        }
+    }
+    
+    for (int i = 0; i < 6; i++) {
+        for (int j = 0; j < 64; j++) {
+            countermoveHistory[i][j] = Move(Position(0,0), Position(0,0));
+        }
+    }
+    
+    for (int i = 0; i < 5; i++) {
+        pruningStats[i] = 0;
+    }
+    
+    std::cout << "Engine: Constructor completed successfully!" << std::endl;
+}
 
+// Engine Destructor - ADD THIS TOO
+Engine::~Engine() {
+    delete[] counterMovesPtr;
+}
 
-void Engine::clearKillerMoves()
-{
+void Engine::clearKillerMoves() {
     for (int ply = 0; ply < MAX_PLY; ply++)
     {
         for (int i = 0; i < 4; i++) // 4 killer slots instead of 2
@@ -92,18 +148,9 @@ void Engine::clearKillerMoves()
 // Clear the counter moves
 void Engine::clearCounterMoves()
 {
-    for (int pieceType = 0; pieceType < 6; pieceType++)
+    for (int i = 0; i < 6 * 2 * 64 * 64; i++)
     {
-        for (int color = 0; color < 2; color++)
-        {
-            for (int from = 0; from < 64; from++)
-            {
-                for (int to = 0; to < 64; to++)
-                {
-                    counterMoves[pieceType][color][from][to] = Move(Position(0, 0), Position(0, 0));
-                }
-            }
-        }
+        counterMovesPtr[i] = Move(Position(0, 0), Position(0, 0));
     }
 }
 
@@ -1268,7 +1315,7 @@ void Engine::storeCounterMove(const Move &lastMove, const Move &counterMove)
     int toIdx = lastMove.to.row * 8 + lastMove.to.col;
 
     // Store the counter move
-    counterMoves[opponentPieceType][opponentColor][fromIdx][toIdx] = counterMove;
+    counterMovesPtr[opponentPieceType * 2 * 64 * 64 + opponentColor * 64 * 64 + fromIdx * 64 + toIdx] = counterMove;
 }
 
 // Get counter move
@@ -1288,7 +1335,7 @@ Move Engine::getCounterMove(const Move &lastMove) const
     int fromIdx = lastMove.from.row * 8 + lastMove.from.col;
     int toIdx = lastMove.to.row * 8 + lastMove.to.col;
 
-    return counterMoves[pieceType][color][fromIdx][toIdx];
+    return counterMovesPtr[pieceType * 2 * 64 * 64 + color * 64 * 64 + fromIdx * 64 + toIdx];
 }
 
 // Enhanced Move Ordering Methods

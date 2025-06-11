@@ -16,6 +16,7 @@ private:
     bool whiteCanCastleQueenside;
     bool blackCanCastleKingside;
     bool blackCanCastleQueenside;
+    
     Position enPassantTarget;
     int halfMoveClock; // for 50-move rule
     int fullMoveNumber;
@@ -102,6 +103,9 @@ private:
 bool isValidMovePattern(std::shared_ptr<Piece> piece, const Move& move) const;
 
 bool validateFENBoardString(const std::string& boardStr) const;
+
+    bool canPieceAttackSquare(std::shared_ptr<Piece> piece, const Position& from, const Position& target) const;
+    bool isPathClear(const Position& from, const Position& to) const;
 
     // Add these to board.h in the private section:
 bool canPieceAttackSquareAfterMove(std::shared_ptr<Piece> piece, Position piecePos, 

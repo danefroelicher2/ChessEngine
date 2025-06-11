@@ -791,17 +791,14 @@ bool Board::isSquareAttacked(const Position& pos, Color attackerColor) const {
             auto piece = getPieceAt(piecePos);
             
             if (piece && piece->getColor() == attackerColor) {
-                // Get the piece's possible moves and see if any attack the target square
-                auto moves = piece->getLegalMoves(*this);
-                for (const auto& move : moves) {
-                    if (move.to == pos) {
-                        return true;
-                    }
+                // Check if this piece can attack the target square
+                // Use direct piece-specific attack patterns instead of getLegalMoves()
+                if (canPieceAttackSquare(piece, piecePos, pos)) {
+                    return true;
                 }
             }
         }
     }
-    
     return false;
 }
 
@@ -944,4 +941,76 @@ void Board::clear() {
     }
     whiteKing = nullptr;
     blackKing = nullptr;
+}
+
+bool Board::canPieceAttackSquare(std::shared_ptr<Piece> piece, const Position& from, const Position& target) const {
+    if (!piece) return false;
+    
+    PieceType type = piece->getType();
+    Color color = piece->getColor();
+    
+    int rowDiff = target.row - from.row;
+    int colDiff = target.col - from.col;
+    int absRowDiff = abs(rowDiff);
+    int absColDiff = abs(colDiff);
+    
+    switch (type) {
+        case PieceType::PAWN: {
+            int direction = (color == Color::WHITE) ? 1 : -1;
+            // Pawns attack diagonally
+            return (rowDiff == direction && absColDiff == 1);
+        }
+        
+        case PieceType::KNIGHT: {
+            // Knight moves in L-shape
+            return (absRowDiff == 2 && absColDiff == 1) || (absRowDiff == 1 && absColDiff == 2);
+        }
+        
+        case PieceType::BISHOP: {
+            // Bishop moves diagonally
+            if (absRowDiff != absColDiff) return false;
+            return isPathClear(from, target);
+        }
+        
+        case PieceType::ROOK: {
+            // Rook moves horizontally or vertically
+            if (rowDiff != 0 && colDiff != 0) return false;
+            return isPathClear(from, target);
+        }
+        
+        case PieceType::QUEEN: {
+            // Queen combines rook and bishop
+            bool straightLine = (rowDiff == 0 || colDiff == 0);
+            bool diagonal = (absRowDiff == absColDiff);
+            if (!straightLine && !diagonal) return false;
+            return isPathClear(from, target);
+        }
+        
+        case PieceType::KING: {
+            // King moves one square in any direction
+            return (absRowDiff <= 1 && absColDiff <= 1 && (absRowDiff != 0 || absColDiff != 0));
+        }
+        
+        default:
+            return false;
+    }
+}
+
+bool Board::isPathClear(const Position& from, const Position& to) const {
+    int rowDir = (to.row > from.row) ? 1 : (to.row < from.row) ? -1 : 0;
+    int colDir = (to.col > from.col) ? 1 : (to.col < from.col) ? -1 : 0;
+    
+    Position current = from;
+    current.row += rowDir;
+    current.col += colDir;
+    
+    while (current.row != to.row || current.col != to.col) {
+        if (getPieceAt(current) != nullptr) {
+            return false; // Path is blocked
+        }
+        current.row += rowDir;
+        current.col += colDir;
+    }
+    
+    return true;
 }
