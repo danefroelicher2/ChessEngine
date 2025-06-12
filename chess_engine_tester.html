@@ -38,6 +38,62 @@
         display: grid;
         grid-template-columns: repeat(8, 1fr);
         grid-template-rows: repeat(8, 1fr);
+        position: relative;
+      }
+
+      .chess-board::before {
+        content: "";
+        position: absolute;
+        top: -25px;
+        left: 0;
+        right: 0;
+        height: 25px;
+        background: transparent;
+      }
+
+      .chess-board::after {
+        content: "";
+        position: absolute;
+        bottom: -25px;
+        left: 0;
+        right: 0;
+        height: 25px;
+        background: transparent;
+      }
+
+      .board-wrapper {
+        position: relative;
+        display: inline-block;
+      }
+
+      .rank-labels {
+        position: absolute;
+        left: -25px;
+        top: 0;
+        height: 500px;
+        width: 25px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-around;
+        align-items: center;
+      }
+
+      .file-labels {
+        position: absolute;
+        bottom: -25px;
+        left: 0;
+        width: 500px;
+        height: 25px;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+      }
+
+      .rank-label,
+      .file-label {
+        color: #1abc9c;
+        font-weight: bold;
+        font-size: 14px;
       }
 
       .square {
@@ -48,17 +104,6 @@
         cursor: pointer;
         position: relative;
         user-select: none;
-      }
-
-      .square::after {
-        content: attr(data-coord);
-        position: absolute;
-        bottom: 2px;
-        left: 2px;
-        font-size: 10px;
-        color: rgba(0, 0, 0, 0.6);
-        font-weight: bold;
-        pointer-events: none;
       }
 
       .light {
@@ -175,7 +220,34 @@
 
     <div class="container">
       <div class="board-container">
-        <div class="chess-board" id="chessBoard"></div>
+        <div class="board-wrapper">
+          <!-- Rank labels (1-8) -->
+          <div class="rank-labels">
+            <div class="rank-label">8</div>
+            <div class="rank-label">7</div>
+            <div class="rank-label">6</div>
+            <div class="rank-label">5</div>
+            <div class="rank-label">4</div>
+            <div class="rank-label">3</div>
+            <div class="rank-label">2</div>
+            <div class="rank-label">1</div>
+          </div>
+
+          <!-- Chess board -->
+          <div class="chess-board" id="chessBoard"></div>
+
+          <!-- File labels (a-h) -->
+          <div class="file-labels">
+            <div class="file-label">a</div>
+            <div class="file-label">b</div>
+            <div class="file-label">c</div>
+            <div class="file-label">d</div>
+            <div class="file-label">e</div>
+            <div class="file-label">f</div>
+            <div class="file-label">g</div>
+            <div class="file-label">h</div>
+          </div>
+        </div>
 
         <div class="status">
           <div><strong>Turn:</strong> <span id="currentTurn">White</span></div>
@@ -294,12 +366,6 @@
             square.className =
               "square " + ((row + col) % 2 === 0 ? "light" : "dark");
             square.id = `square-${row}-${col}`;
-
-            // Add coordinate labels
-            const file = String.fromCharCode(97 + col); // a-h
-            const rank = 8 - row; // 8-1
-            square.setAttribute("data-coord", file + rank);
-
             square.onclick = () => squareClicked(row, col);
             boardEl.appendChild(square);
           }
