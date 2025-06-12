@@ -50,6 +50,17 @@
         user-select: none;
       }
 
+      .square::after {
+        content: attr(data-coord);
+        position: absolute;
+        bottom: 2px;
+        left: 2px;
+        font-size: 10px;
+        color: rgba(0, 0, 0, 0.6);
+        font-weight: bold;
+        pointer-events: none;
+      }
+
       .light {
         background-color: #f0d9b5;
         color: #000;
@@ -283,6 +294,12 @@
             square.className =
               "square " + ((row + col) % 2 === 0 ? "light" : "dark");
             square.id = `square-${row}-${col}`;
+
+            // Add coordinate labels
+            const file = String.fromCharCode(97 + col); // a-h
+            const rank = 8 - row; // 8-1
+            square.setAttribute("data-coord", file + rank);
+
             square.onclick = () => squareClicked(row, col);
             boardEl.appendChild(square);
           }
@@ -462,101 +479,82 @@
         historyEl.scrollTop = historyEl.scrollHeight;
       }
 
-      function addToEngineOutput(text) {
+      function addToEngineOutput(message) {
         const outputEl = document.getElementById("engineOutput");
         const timestamp = new Date().toLocaleTimeString();
-        outputEl.innerHTML += `<br>[${timestamp}] ${text}`;
+        outputEl.innerHTML += `<div>[${timestamp}] ${message}</div>`;
         outputEl.scrollTop = outputEl.scrollHeight;
       }
 
+      function getCurrentFEN() {
+        // Simple FEN generation for current board state
+        let fen = "";
+        for (let row = 0; row < 8; row++) {
+          let emptyCount = 0;
+          for (let col = 0; col < 8; col++) {
+            const piece = board[row][col];
+            if (piece) {
+              if (emptyCount > 0) {
+                fen += emptyCount;
+                emptyCount = 0;
+              }
+              fen += piece;
+            } else {
+              emptyCount++;
+            }
+          }
+          if (emptyCount > 0) {
+            fen += emptyCount;
+          }
+          if (row < 7) fen += "/";
+        }
+
+        // Add turn, castling, en passant, halfmove, fullmove
+        const turn = currentTurn === "white" ? "w" : "b";
+        return `${fen} ${turn} KQkq - 0 1`;
+      }
+
       function loadFEN(fen) {
-        // Enhanced FEN loader
+        // Reset board
         board = Array(8)
           .fill()
           .map(() => Array(8).fill(null));
 
         const parts = fen.split(" ");
-        const position = parts[0];
-        const rows = position.split("/");
+        const boardStr = parts[0];
+        const rows = boardStr.split("/");
 
         for (let row = 0; row < 8; row++) {
+          const rowStr = rows[row];
           let col = 0;
-          for (let char of rows[row]) {
-            if (char >= "1" && char <= "8") {
-              col += parseInt(char);
-            } else {
+          for (let i = 0; i < rowStr.length; i++) {
+            const char = rowStr[i];
+            if (isNaN(char)) {
               board[row][col] = char;
               col++;
-            }
-          }
-        }
-
-        // Set turn from FEN
-        if (parts[1]) {
-          currentTurn = parts[1] === "w" ? "white" : "black";
-        }
-      }
-
-      // **ENHANCED: Complete FEN generation**
-      function getCurrentFEN() {
-        // Convert current board state to FEN notation
-        let fen = "";
-
-        // Add pieces (board representation)
-        for (let row = 0; row < 8; row++) {
-          let emptyCount = 0;
-          let rowStr = "";
-
-          for (let col = 0; col < 8; col++) {
-            const piece = board[row][col];
-            if (piece) {
-              if (emptyCount > 0) {
-                rowStr += emptyCount.toString();
-                emptyCount = 0;
-              }
-              rowStr += piece;
             } else {
-              emptyCount++;
+              col += parseInt(char);
             }
           }
-
-          if (emptyCount > 0) {
-            rowStr += emptyCount.toString();
-          }
-
-          fen += rowStr;
-          if (row < 7) fen += "/";
         }
 
-        // Add side to move
-        fen += " " + (currentTurn === "white" ? "w" : "b");
-
-        // Add castling availability (simplified - assume all available for now)
-        fen += " KQkq";
-
-        // Add en passant target (simplified - none for now)
-        fen += " -";
-
-        // Add halfmove clock and fullmove number (simplified)
-        fen += " 0 " + Math.max(1, Math.floor(moveHistory.length / 2) + 1);
-
-        return fen;
+        currentTurn = parts[1] === "w" ? "white" : "black";
       }
 
-      // **ENHANCED: Complete move parsing and validation**
       function parseAndMakeMove(moveStr) {
-        if (!moveStr || moveStr.length < 4) {
-          return false;
-        }
-
         try {
-          // Parse move string like "e2e4" or "e7e8q"
-          const fromCol = moveStr.charCodeAt(0) - 97; // 'a'.charCodeAt(0)
-          const fromRow = 8 - parseInt(moveStr[1]);
-          const toCol = moveStr.charCodeAt(2) - 97;
-          const toRow = 8 - parseInt(moveStr[3]);
+          if (moveStr.length < 4) return false;
 
-          // Validate positions
+          const fromFile = moveStr[0];
+          const fromRank = moveStr[1];
+          const toFile = moveStr[2];
+          const toRank = moveStr[3];
+
+          const fromCol = fromFile.charCodeAt(0) - 97;
+          const fromRow = 8 - parseInt(fromRank);
+          const toCol = toFile.charCodeAt(0) - 97;
+          const toRow = 8 - parseInt(toRank);
+
           if (
             fromRow < 0 ||
             fromRow > 7 ||
@@ -570,29 +568,15 @@
             return false;
           }
 
-          // Get the piece at the from position
           const piece = board[fromRow][fromCol];
-          if (!piece) {
-            return false;
-          }
+          if (!piece) return false;
 
-          // Basic validation: check if it's the right player's turn
-          const isWhitePiece = piece === piece.toUpperCase();
-          if (
-            (currentTurn === "white" && !isWhitePiece) ||
-            (currentTurn === "black" && isWhitePiece)
-          ) {
-            return false;
-          }
-
-          // Make the move
           board[toRow][toCol] = piece;
           board[fromRow][fromCol] = null;
 
-          // Handle pawn promotion
-          if (moveStr.length > 4) {
+          if (moveStr.length === 5) {
             const promotion = moveStr[4];
-            const isWhite = currentTurn === "white";
+            const isWhite = piece === piece.toUpperCase();
             switch (promotion) {
               case "q":
                 board[toRow][toCol] = isWhite ? "Q" : "q";
@@ -609,7 +593,6 @@
             }
           }
 
-          // Switch turns
           currentTurn = currentTurn === "white" ? "black" : "white";
 
           return true;
@@ -619,16 +602,13 @@
         }
       }
 
-      // **ENHANCED: Complete engine communication**
       async function communicateWithEngine() {
         try {
-          // Get current position as FEN
           const fen = getCurrentFEN();
           const depth = document.getElementById("engineDepth").value || "3";
 
           addToEngineOutput(`Sending position to engine (depth: ${depth})`);
 
-          // Try HTTP communication with your C++ server
           const response = await fetch(
             `http://localhost:8080/move?fen=${encodeURIComponent(
               fen
@@ -647,7 +627,6 @@
             if (move && move.length >= 4) {
               addToEngineOutput(`Engine move: ${move} (eval: ${eval})`);
 
-              // Parse and make the move
               if (parseAndMakeMove(move)) {
                 updateDisplay();
                 addToHistory(`${move} (Engine eval: ${eval})`);
@@ -655,7 +634,6 @@
                   "lastMove"
                 ).textContent = `${move} (Engine)`;
 
-                // Continue auto-play if enabled
                 if (autoPlay && !gameEnded) {
                   setTimeout(() => {
                     if (currentTurn === "black") {
@@ -688,7 +666,6 @@
         }
       }
 
-      // **NEW: Test engine connection**
       async function testConnection() {
         try {
           addToEngineOutput("Testing connection to engine...");
