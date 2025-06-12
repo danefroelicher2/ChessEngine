@@ -101,6 +101,9 @@ public:
     // Calculate the best move for the current position
     Move getBestMove();
 
+    // CRITICAL FIX: Crash-safe version of getBestMove
+    Move getBestMoveSafe();
+
     // Clear the transposition table
     void clearTT() { transpositionTable.clear(); }
 
@@ -115,6 +118,10 @@ public:
     
     // FIXED: Public evaluation methods for testing - these were causing the compilation errors
     int evaluatePosition(const Board &board);
+    
+    // CRITICAL FIX: Crash-safe version of evaluatePosition
+    int evaluatePositionSafe(const Board &board);
+    
     int evaluatePieceMobility(const Board& board) const;
     int evaluateKingSafety(const Board& board) const;
     int evaluatePawnStructure(const Board& board) const;
@@ -209,6 +216,11 @@ static inline const double LMR_POSITION_FACTOR = 0.3;
                   std::vector<Move> &pv, uint64_t hashKey, int ply, Move lastMove);
     int quiescenceSearch(Board &board, int alpha, int beta, uint64_t hashKey, int ply);
 
+    // CRITICAL FIX: Safe search methods to prevent crashes
+    Move iterativeDeepeningSearchSafe(Board &board, int maxDepth, uint64_t hashKey);
+    int pvSearchSafe(Board &board, int depth, int alpha, int beta, bool maximizingPlayer,
+                    std::vector<Move> &pv, uint64_t hashKey, int ply, Move lastMove);
+
     // NEW: Individual Evaluation Components
     int evaluateKingSafetyForColor(const Board& board, Color color) const;
     int evaluatePawnsForColor(const Board& board, Color color) const;
@@ -261,6 +273,10 @@ static inline const double LMR_POSITION_FACTOR = 0.3;
     void storeEnhancedKillerMove(const Move &move, int ply);
     bool isKillerMove(const Move &move, int ply) const;
 
+    // CRITICAL FIX: Safe killer move methods to prevent array bounds crashes
+    bool isKillerMoveSafe(const Move &move, int ply) const;
+    void storeEnhancedKillerMoveSafe(const Move &move, int ply);
+
     // COUNTER MOVE MANAGEMENT
     void storeCounterMove(const Move &lastMove, const Move &counterMove);
     Move getCounterMove(const Move &lastMove) const;
@@ -270,6 +286,10 @@ static inline const double LMR_POSITION_FACTOR = 0.3;
     // HISTORY HEURISTIC MANAGEMENT
     void updateHistoryScore(const Move &move, int depth, Color color);
     int getHistoryScore(const Move &move, Color color) const;
+    
+    // CRITICAL FIX: Safe history methods to prevent array bounds crashes
+    int getHistoryScoreSafe(const Move &move, Color color) const;
+    void updateHistoryScoreSafe(const Move &move, int depth, Color color);
     
     // Extension methods
     int calculateExtensions(const Move& move, const Board& board, int depth, int ply, 
@@ -298,6 +318,9 @@ static inline const double LMR_POSITION_FACTOR = 0.3;
     // BUTTERFLY HISTORY MANAGEMENT
     void updateButterflyHistory(const Move &move, int depth, Color color);
     int getButterflyScore(const Move &move) const;
+    
+    // CRITICAL FIX: Safe butterfly history method
+    int getButterflyScoreSafe(const Move &move) const;
 
     // PRINCIPAL VARIATION MANAGEMENT
     void storePV(int depth, const std::vector<Move> &pv);
