@@ -1,5 +1,6 @@
 C:/Users/froel/Downloads/Programming Projects/In Dev/ChessEngine/build/CMakeFiles/chess_engine.dir
 C:/Users/froel/Downloads/Programming Projects/In Dev/ChessEngine/build/CMakeFiles/simple_server.dir
 C:/Users/froel/Downloads/Programming Projects/In Dev/ChessEngine/build/CMakeFiles/engine_bridge.dir
+C:/Users/froel/Downloads/Programming Projects/In Dev/ChessEngine/build/CMakeFiles/progressive_engine.dir
 C:/Users/froel/Downloads/Programming Projects/In Dev/ChessEngine/build/CMakeFiles/ALL_BUILD.dir
 C:/Users/froel/Downloads/Programming Projects/In Dev/ChessEngine/build/CMakeFiles/ZERO_CHECK.dir
