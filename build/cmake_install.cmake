@@ -1,4 +1,4 @@
-# Install script for directory: C:/Users/froel/Downloads/Programming Projects/ChessEngine
+# Install script for directory: C:/Users/froel/Downloads/Programming Projects/In Dev/ChessEngine
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -40,5 +40,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "C:/Users/froel/Downloads/Programming Projects/ChessEngine/build/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "C:/Users/froel/Downloads/Programming Projects/In Dev/ChessEngine/build/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

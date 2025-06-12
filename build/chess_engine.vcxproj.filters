@@ -1,96 +1,96 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\main.cpp">
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\piece.cpp">
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\piece.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\piece_types.cpp">
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\piece_types.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\board.cpp">
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\board.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\game.cpp">
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\game.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\engine.cpp">
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\engine.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\ui.cpp">
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\ui.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\zobrist.cpp">
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\zobrist.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\transposition.cpp">
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\transposition.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\perft.cpp">
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\perft.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\tactical_tests.cpp">
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\tactical_tests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\uci.cpp">
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\uci.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\main.h">
+    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\main.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\piece.h">
+    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\piece.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\piece_types.h">
+    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\piece_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\common.h">
+    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\board.h">
+    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\board.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\game.h">
+    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\game.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\engine.h">
+    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\engine.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\ui.h">
+    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\ui.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\zobrist.h">
+    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\zobrist.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\transposition.h">
+    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\transposition.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\board_state.h">
+    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\board_state.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\perft.h">
+    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\perft.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\tactical_tests.h">
+    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\tactical_tests.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\uci.h">
+    <ClInclude Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\uci.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="C:\Users\froel\Downloads\Programming Projects\ChessEngine\CMakeLists.txt" />
+    <CustomBuild Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Header Files">
-      <UniqueIdentifier>{069782D3-143D-36D9-9A96-5AAD313B8960}</UniqueIdentifier>
+      <UniqueIdentifier>{DDF20BA7-55E0-3603-8B55-563BF91F74A0}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files">
-      <UniqueIdentifier>{75C149E0-74C7-369C-808A-4E789F1F2905}</UniqueIdentifier>
+      <UniqueIdentifier>{B2C94399-B23B-3233-BCCF-CD872FC3D82E}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

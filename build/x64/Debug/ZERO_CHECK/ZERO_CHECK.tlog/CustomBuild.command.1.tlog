@@ -1,6 +1,6 @@
-^C:\USERS\FROEL\DOWNLOADS\PROGRAMMING PROJECTS\CHESSENGINE\BUILD\CMAKEFILES\A2721ADC8222DAEB4BE69C0082949F45\GENERATE.STAMP.RULE
+^C:\USERS\FROEL\DOWNLOADS\PROGRAMMING PROJECTS\IN DEV\CHESSENGINE\BUILD\CMAKEFILES\A1FD60FFB56DAECCAE597E25E8B4EAF5\GENERATE.STAMP.RULE
 setlocal
-"C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" "-SC:/Users/froel/Downloads/Programming Projects/ChessEngine" "-BC:/Users/froel/Downloads/Programming Projects/ChessEngine/build" --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file "C:/Users/froel/Downloads/Programming Projects/ChessEngine/build/ChessEngine.sln"
+"C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" "-SC:/Users/froel/Downloads/Programming Projects/In Dev/ChessEngine" "-BC:/Users/froel/Downloads/Programming Projects/In Dev/ChessEngine/build" --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file "C:/Users/froel/Downloads/Programming Projects/In Dev/ChessEngine/build/ChessEngine.sln"
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
