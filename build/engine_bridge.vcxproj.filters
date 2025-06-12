@@ -1,0 +1,37 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\engine_bridge.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\piece.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\piece_types.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\board.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\game.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\engine.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\zobrist.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\transposition.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{B2C94399-B23B-3233-BCCF-CD872FC3D82E}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

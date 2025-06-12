@@ -37,12 +37,37 @@ set(HEADERS
     uci.h
 )
 
-# Create executable
+# Create main chess engine executable
 add_executable(chess_engine ${SOURCES} ${HEADERS})
+
+# Create simple test server
+add_executable(simple_server simple_server.cpp)
+if(WIN32)
+    target_link_libraries(simple_server ws2_32)
+endif()
+
+# Create engine bridge server (NEW)
+add_executable(engine_bridge 
+    engine_bridge.cpp
+    piece.cpp
+    piece_types.cpp
+    board.cpp
+    game.cpp
+    engine.cpp
+    zobrist.cpp
+    transposition.cpp
+)
+if(WIN32)
+    target_link_libraries(engine_bridge ws2_32)
+endif()
 
 # Add any compiler flags if needed
 if(MSVC)
     target_compile_options(chess_engine PRIVATE /W4)
+    target_compile_options(simple_server PRIVATE /W4)
+    target_compile_options(engine_bridge PRIVATE /W4)
 else()
     target_compile_options(chess_engine PRIVATE -Wall -Wextra -pedantic)
+    target_compile_options(simple_server PRIVATE -Wall -Wextra -pedantic)
+    target_compile_options(engine_bridge PRIVATE -Wall -Wextra -pedantic)
 endif()

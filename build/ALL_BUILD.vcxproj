@@ -174,9 +174,9 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <Project>{F17BB652-DB1D-35FC-B081-294BA215571F}</Project>
       <Name>chess_engine</Name>
     </ProjectReference>
-    <ProjectReference Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\build\real_engine_server.vcxproj">
-      <Project>{1CD4AC19-6560-35E6-8A40-B5A1BE743068}</Project>
-      <Name>real_engine_server</Name>
+    <ProjectReference Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\build\engine_bridge.vcxproj">
+      <Project>{DDA91EFA-86B7-3BB7-864E-4D6C2C5120A6}</Project>
+      <Name>engine_bridge</Name>
     </ProjectReference>
     <ProjectReference Include="C:\Users\froel\Downloads\Programming Projects\In Dev\ChessEngine\build\simple_server.vcxproj">
       <Project>{68AB4150-1389-3D9C-8C2D-337C96AF9897}</Project>
